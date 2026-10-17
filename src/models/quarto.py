@@ -1,11 +1,15 @@
 from dataclasses import dataclass
 from typing import Optional
 
-# Valores válidos de situação (iguais ao CHECK do schema.sql)
-DISPONIVEL = "disponivel"
-OCUPADO = "ocupado"
-MANUTENCAO = "manutencao"
-SITUACOES = (DISPONIVEL, OCUPADO, MANUTENCAO)
+from src.utils.constantes import (QUARTO_DISPONIVEL, QUARTO_MANUTENCAO, QUARTO_OCUPADO,
+                                  QUARTO_RESERVADO, SITUACOES_QUARTO)
+
+# Mantidos com os nomes antigos para não quebrar imports existentes
+DISPONIVEL = QUARTO_DISPONIVEL
+OCUPADO = QUARTO_OCUPADO
+RESERVADO = QUARTO_RESERVADO
+MANUTENCAO = QUARTO_MANUTENCAO
+SITUACOES = tuple(SITUACOES_QUARTO)
 
 
 @dataclass

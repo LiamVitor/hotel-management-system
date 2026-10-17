@@ -1,5 +1,6 @@
 from database.conexao import inserir, executar, consultar_um, consultar_todos
-from src.models.quarto import Quarto, MANUTENCAO
+from src.models.quarto import Quarto
+from src.utils.constantes import QUARTO_MANUTENCAO, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA
 
 
 class QuartoRepository:
@@ -50,19 +51,19 @@ class QuartoRepository:
 
     def listar_disponiveis(self, data_entrada, data_saida, capacidade_minima=1):
         """Quartos que não estão em manutenção, comportam o número de pessoas
-        e não têm reserva ativa sobreposta ao período informado."""
+        e não têm reserva (confirmada ou hospedada) sobreposta ao período."""
         linhas = consultar_todos(
             """SELECT * FROM quartos
                WHERE situacao != ?
                  AND capacidade >= ?
                  AND id NOT IN (
                      SELECT quarto_id FROM reservas
-                     WHERE situacao = 'ativa'
+                     WHERE situacao IN (?, ?)
                        AND data_entrada < ?
                        AND data_saida > ?
                  )
                ORDER BY numero""",
-            (MANUTENCAO, capacidade_minima,
+            (QUARTO_MANUTENCAO, capacidade_minima, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA,
              data_saida.isoformat(), data_entrada.isoformat()),
         )
         return self._para_objetos(linhas)

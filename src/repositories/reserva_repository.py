@@ -2,6 +2,7 @@ from datetime import date
 
 from database.conexao import inserir, executar, consultar_um, consultar_todos
 from src.models.reserva import Reserva
+from src.utils.constantes import RESERVA_CANCELADA, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA
 
 
 class ReservaRepository:
@@ -65,16 +66,17 @@ class ReservaRepository:
         return self._para_objetos(linhas)
 
     def listar_conflitantes(self, quarto_id, data_entrada, data_saida, ignorar_id=None):
-        """Reservas ativas do quarto que se sobrepõem ao período informado.
+        """Reservas confirmadas ou hospedadas do quarto que se sobrepõem ao período.
         Só consulta. Quem decide o que fazer com isso é o service."""
         linhas = consultar_todos(
             """SELECT * FROM reservas
                WHERE quarto_id = ?
-                 AND situacao = 'ativa'
+                 AND situacao IN (?, ?)
                  AND data_entrada < ?
                  AND data_saida > ?
                  AND id != ?""",
-            (quarto_id, data_saida.isoformat(), data_entrada.isoformat(), ignorar_id or -1),
+            (quarto_id, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA,
+             data_saida.isoformat(), data_entrada.isoformat(), ignorar_id or -1),
         )
         return self._para_objetos(linhas)
 
@@ -100,8 +102,8 @@ class ReservaRepository:
 
     def cancelar(self, reserva_id, conexao=None):
         afetadas = executar(
-            "UPDATE reservas SET situacao = 'cancelada' WHERE id = ?",
-            (reserva_id,),
+            "UPDATE reservas SET situacao = ? WHERE id = ?",
+            (RESERVA_CANCELADA, reserva_id),
             conexao=conexao,
         )
         return afetadas > 0

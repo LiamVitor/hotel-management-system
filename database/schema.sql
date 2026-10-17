@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS quartos (
     tipo          TEXT NOT NULL,
     capacidade    INTEGER NOT NULL CHECK (capacidade > 0),
     preco_diaria  REAL NOT NULL CHECK (preco_diaria >= 0),
-    situacao      TEXT NOT NULL DEFAULT 'disponivel'
-                  CHECK (situacao IN ('disponivel', 'ocupado', 'manutencao'))
+    situacao      TEXT NOT NULL DEFAULT 'Disponível'
+                  CHECK (situacao IN ('Disponível', 'Ocupado', 'Reservado', 'Manutenção'))
 );
 
 CREATE TABLE IF NOT EXISTS reservas (
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS reservas (
     data_saida    TEXT NOT NULL,
     valor_diaria  REAL NOT NULL,
     valor_total   REAL NOT NULL,
-    situacao      TEXT NOT NULL DEFAULT 'ativa'
-                  CHECK (situacao IN ('ativa', 'cancelada', 'finalizada')),
+    situacao      TEXT NOT NULL DEFAULT 'Confirmada'
+                  CHECK (situacao IN ('Confirmada', 'Hospedada', 'Finalizada', 'Cancelada')),
     CHECK (data_saida > data_entrada)
 );
