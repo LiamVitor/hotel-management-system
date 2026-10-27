@@ -28,3 +28,11 @@ CREATE TABLE IF NOT EXISTS reservas (
                   CHECK (situacao IN ('Confirmada', 'Hospedada', 'Finalizada', 'Cancelada')),
     CHECK (data_saida > data_entrada)
 );
+
+
+CREATE TABLE IF NOT EXISTS usuarios (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome      TEXT NOT NULL,
+    email     TEXT NOT NULL UNIQUE,
+    senha     TEXT NOT NULL
+);

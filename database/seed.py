@@ -5,12 +5,18 @@ Uso, na raiz do projeto:  python -m database.seed
 from datetime import date, timedelta
 
 from database.conexao import inicializar_banco
+from src.models.usuario import Usuario
 from src.models.hospede import Hospede
 from src.models.quarto import Quarto
 from src.models.reserva import Reserva
+from src.repositories.usuario_repository import UsuarioRepository
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
+
+USUARIOS = [
+    ("Admin", "admin@pousada.com", "123456")
+]
 
 HOSPEDES = [
     ("Maria Silva Santos", "123.456.789-00", "(86) 99912-3456", "maria.silva@email.com"),
@@ -49,13 +55,19 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
 
 def popular():
     inicializar_banco()
-    repo_h, repo_q, repo_r = HospedeRepository(), QuartoRepository(), ReservaRepository()
+    repo_h, repo_q, repo_r, repo_u = HospedeRepository(), QuartoRepository(), ReservaRepository(), UsuarioRepository()
     if repo_h.listar() or repo_q.listar() or repo_r.listar():
         print("O banco já tem dados. Nada foi alterado.")
         return
 
     hospedes = [repo_h.criar(Hospede(nome=n, cpf=c, telefone=t, email=e))
                 for n, c, t, e in HOSPEDES]
+
+    usuarios = [
+        repo_u.criar(Usuario(nome=nome, email=email, senha=senha))
+        for nome, email, senha in USUARIOS
+    ]
+
     quartos = {numero: repo_q.criar(Quarto(numero=numero, tipo=tipo, capacidade=cap,
                                            preco_diaria=preco, situacao=situacao))
                for numero, tipo, cap, preco, situacao in QUARTOS}
@@ -71,7 +83,7 @@ def popular():
             valor_total=(saida - entrada).days * quarto.preco_diaria,
             situacao=situacao))
     print(f"Banco populado: {len(hospedes)} hóspedes, {len(quartos)} quartos, "
-          f"{len(RESERVAS)} reservas.")
+          f"{len(RESERVAS)} reservas e {len(USUARIOS)} usuários.")
 
 
 if __name__ == "__main__":
