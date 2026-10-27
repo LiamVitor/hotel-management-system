@@ -52,14 +52,18 @@ python -m pytest
 
 O resultado esperado é tudo verde (`passed`). Os testes usam um banco temporário, então **não** mexem no `data/hotel.db`.
 
-## 3. Popular o banco com dados de exemplo (opcional)
+## 3. Popular o banco com dados de exemplo (NECESSARIO)
 
 ```bash
 python -m database.seed
 ```
 
-Cria hóspedes, quartos e reservas de exemplo. Só roda se o banco estiver vazio. Sem isso, o app abre sem nenhum dado.
+Cria hóspedes, quartos e reservas de exemplo, além de adicionar o usuario padrão. Só roda se o banco estiver vazio.
 
+### 3.1 Usuário Padrão
+```
+email: admin@pousada.com | senha: 123456
+```
 ## 4. Rodar o app
 
 ```bash
