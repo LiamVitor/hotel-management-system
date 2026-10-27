@@ -37,7 +37,7 @@ def test_criar_e_buscar_por_id(ctx):
     assert criada.id is not None
     encontrada = repo.buscar_por_id(criada.id)
     assert encontrada.data_entrada == date(2026, 10, 20)
-    assert encontrada.situacao == "ativa"
+    assert encontrada.situacao == "Confirmada"
 
 
 def test_buscar_inexistente_retorna_none(ctx):
@@ -67,7 +67,7 @@ def test_cancelar_mantem_o_registro(ctx):
     repo, hospede_id, quarto_id = ctx
     r = repo.criar(nova_reserva(hospede_id, quarto_id, date(2026, 10, 20), date(2026, 10, 22)))
     assert repo.cancelar(r.id) is True
-    assert repo.buscar_por_id(r.id).situacao == "cancelada"
+    assert repo.buscar_por_id(r.id).situacao == "Cancelada"
 
 
 def test_cancelar_inexistente_retorna_false(ctx):

@@ -18,7 +18,7 @@ def novo_quarto(numero="101", capacidade=2, preco=150.0, situacao=DISPONIVEL):
                   preco_diaria=preco, situacao=situacao)
 
 
-def reservar(quarto_id, entrada, saida, situacao="ativa"):
+def reservar(quarto_id, entrada, saida, situacao="Hospedada"):
     """Cria hóspede e reserva direto pelo banco, só para montar o cenário."""
     hospede_id = conexao.inserir(
         "INSERT INTO hospedes (nome, cpf) VALUES (?, ?)",
@@ -116,7 +116,7 @@ def test_disponiveis_dia_de_troca_libera_o_quarto(repo):
 
 def test_disponiveis_ignora_reserva_cancelada(repo):
     q = repo.criar(novo_quarto("101"))
-    reservar(q.id, date(2026, 10, 20), date(2026, 10, 25), situacao="cancelada")
+    reservar(q.id, date(2026, 10, 20), date(2026, 10, 25), situacao="Cancelada")
     assert len(repo.listar_disponiveis(date(2026, 10, 21), date(2026, 10, 23))) == 1
 
 
