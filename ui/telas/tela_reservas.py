@@ -7,17 +7,29 @@ from src.services.erros import ErroNegocio
 from src.services.reserva_regras import (calcular_diarias, calcular_total, pode_cancelar,
                                          validar_capacidade, validar_periodo)
 from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
-from ui.componentes.campos import CampoSelecao, CampoTexto
+from ui.componentes.campos import CampoTexto, reformatar_entrada
 from ui.componentes.cartao import Cartao
+from ui.componentes.seletor import CampoSeletor, JanelaSelecao
 from ui.componentes.tabela import Tabela
-from ui.estilos import AZUL, COR_TEXTO, COR_TEXTO_SUAVE, VERDE, VERMELHO, fonte
+from ui.estilos import (AZUL, COR_BORDA_CAMPO, COR_SELECAO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE,
+                        VERMELHO, fonte)
 from ui.telas.tela_base import TelaBase
-from src.utils.constantes import QUARTO_MANUTENCAO
-from src.utils.formatacao import formatar_data, formatar_moeda, ler_data
+from src.utils.constantes import QUARTO_MANUTENCAO, SITUACOES_RESERVA
+from src.utils.filtros import normalizar_texto
+from src.utils.formatacao import (formatar_cpf, formatar_data, formatar_moeda,
+                                  formatar_telefone, ler_data, mascara_data)
 
 COLUNAS = [("Código", "codigo", 70), ("Hóspede", "hospede", 210), ("Quarto", "quarto", 70),
            ("Entrada", "entrada", 100), ("Saída", "saida", 100), ("Total", "total", 120),
            ("Status", "situacao", 110)]
+
+COLUNAS_SELECAO_HOSPEDE = [("Nome", "nome", 230), ("CPF", "cpf", 130),
+                           ("Telefone", "telefone", 140), ("E-mail", "email", 200)]
+COLUNAS_SELECAO_QUARTO = [("Número", "numero", 90), ("Tipo", "tipo", 130),
+                          ("Capacidade", "capacidade", 110), ("Diária", "diaria", 130),
+                          ("Status", "situacao", 130)]
+
+TODAS = "Todas"
 
 
 class TelaReservas(TelaBase):
@@ -25,8 +37,6 @@ class TelaReservas(TelaBase):
 
     def __init__(self, master, servicos):
         super().__init__(master, servicos)
-        self._hospedes = {}   # texto do combo -> id
-        self._quartos = {}
 
         topo = ctk.CTkFrame(self.corpo, fg_color="transparent")
         topo.pack(fill="x")
@@ -45,11 +55,15 @@ class TelaReservas(TelaBase):
         grade.pack(fill="x", padx=20)
         grade.grid_columnconfigure((0, 1, 2), weight=1, uniform="campos")
 
-        self.hospede = CampoSelecao(grade, "Hóspede", [], self.atualizar_resumo)
-        self.quarto = CampoSelecao(grade, "Quarto", [], self.atualizar_resumo)
+        self.hospede = CampoSeletor(grade, "Hóspede", "Clique para pesquisar e escolher o hóspede…",
+                                    self._abrir_selecao_hospede, self.atualizar_resumo)
+        self.quarto = CampoSeletor(grade, "Quarto", "Clique para pesquisar e escolher o quarto…",
+                                   self._abrir_selecao_quarto, self.atualizar_resumo)
         self.num = CampoTexto(grade, "Nº de hóspedes", "1", self.atualizar_resumo)
-        self.entrada = CampoTexto(grade, "Data de entrada", "dd/mm/aaaa", self.atualizar_resumo)
-        self.saida = CampoTexto(grade, "Data de saída", "dd/mm/aaaa", self.atualizar_resumo)
+        self.entrada = CampoTexto(grade, "Data de entrada", "dd/mm/aaaa", self.atualizar_resumo,
+                                  mascara=mascara_data)
+        self.saida = CampoTexto(grade, "Data de saída", "dd/mm/aaaa", self.atualizar_resumo,
+                                mascara=mascara_data)
         self.hospede.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 10))
         self.quarto.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 10))
         self.num.grid(row=2, column=0, sticky="ew", padx=(0, 8))
@@ -86,36 +100,169 @@ class TelaReservas(TelaBase):
     def _montar_tabela(self):
         lista = Cartao(self.corpo, "Reservas")
         lista.pack(fill="both", expand=True, pady=(16, 0))
-        # a barra de ações é empacotada primeiro, embaixo, para nunca ser espremida
+        self._montar_filtros(lista)
+
+        # a barra de ações é empacotada antes da tabela, embaixo, para nunca ser espremida
         acoes = ctk.CTkFrame(lista, fg_color="transparent")
-        acoes.pack(side="bottom", anchor="w", padx=20, pady=(0, 16))
+        acoes.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
         botao_perigo(acoes, "Cancelar reserva selecionada", self.cancelar, 240).pack(side="left")
+        self.lbl_filtro = ctk.CTkLabel(acoes, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
+        self.lbl_filtro.pack(side="left", padx=14)
+
         self.tabela = Tabela(lista, COLUNAS, altura=110)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
+    def _montar_filtros(self, lista):
+        filtros = ctk.CTkFrame(lista, fg_color="transparent")
+        filtros.pack(fill="x", padx=20, pady=(0, 10))
+
+        self.busca = self._entrada_filtro(filtros, "Hóspede, CPF, quarto ou código", 280)
+        self.filtro_situacao = ctk.CTkComboBox(
+            filtros, values=[TODAS, *SITUACOES_RESERVA], state="readonly", width=130, height=36,
+            command=lambda _v: self.atualizar_tabela(), fg_color="white",
+            border_color=COR_BORDA_CAMPO, button_color=COR_BORDA_CAMPO,
+            button_hover_color="#9CA3AF", text_color=COR_TEXTO, dropdown_fg_color="white",
+            dropdown_text_color=COR_TEXTO, dropdown_hover_color=COR_SELECAO, font=fonte(13))
+        self.filtro_situacao.set(TODAS)
+        self.filtro_situacao.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(filtros, text="Período", font=fonte(12, True), text_color=COR_TEXTO_SUAVE
+                     ).pack(side="left", padx=(4, 8))
+        self.filtro_de = self._entrada_filtro(filtros, "dd/mm/aaaa", 110, mascara_data, 0)
+        ctk.CTkLabel(filtros, text="até", font=fonte(12), text_color=COR_TEXTO_SUAVE
+                     ).pack(side="left", padx=(0, 8))
+        self.filtro_ate = self._entrada_filtro(filtros, "dd/mm/aaaa", 110, mascara_data)
+        botao_secundario(filtros, "Limpar filtros", self.limpar_filtros, 120).pack(side="left")
+
+    def _entrada_filtro(self, pai, placeholder, largura, mascara=None, espaco_direita=10):
+        entrada = ctk.CTkEntry(pai, placeholder_text=placeholder, width=largura, height=36,
+                               fg_color="white", border_color=COR_BORDA_CAMPO,
+                               text_color=COR_TEXTO, placeholder_text_color="#9CA3AF",
+                               font=fonte(13))
+        entrada.pack(side="left", padx=(0, espaco_direita))
+
+        def ao_digitar(_evento=None):
+            if mascara:
+                reformatar_entrada(entrada, mascara)
+            self.atualizar_tabela()
+        entrada.bind("<KeyRelease>", ao_digitar)
+        return entrada
+
+    # ---------- escolha de hóspede e quarto ----------
+    @staticmethod
+    def _texto_hospede(h):
+        return f"{h.nome} — {formatar_cpf(h.cpf)}"
+
+    @staticmethod
+    def _texto_quarto(q):
+        return f"{q.numero} · {q.tipo} · {formatar_moeda(q.preco_diaria)}/dia"
+
+    def _abrir_selecao_hospede(self, escolher):
+        def buscar(termo, _opcao):
+            return [{"id": h.id, "nome": h.nome, "cpf": formatar_cpf(h.cpf),
+                     "telefone": formatar_telefone(h.telefone), "email": h.email or "",
+                     "texto": self._texto_hospede(h)}
+                    for h in self.servicos.hospedes.listar(termo)]
+
+        JanelaSelecao(self, "Selecionar hóspede", COLUNAS_SELECAO_HOSPEDE, buscar,
+                      lambda linha: escolher(linha["id"], linha["texto"]),
+                      placeholder="Buscar por nome, CPF, telefone ou e-mail")
+
+    def _abrir_selecao_quarto(self, escolher):
+        periodo = self._periodo_informado()
+        pessoas = self._numero_hospedes() or 1
+        if periodo:
+            entrada, saida = periodo
+            opcao = ("Mostrar só quartos disponíveis no período e com capacidade suficiente", True)
+            informacao = (f"Período de {formatar_data(entrada)} a {formatar_data(saida)} "
+                          f"para {pessoas} hóspede(s).")
+        else:
+            opcao = None
+            informacao = ("Informe datas de entrada e saída válidas para filtrar só os quartos "
+                          "disponíveis no período.")
+
+        def buscar(termo, so_disponiveis):
+            if periodo and so_disponiveis:
+                quartos = self.servicos.quartos.listar_disponiveis(*periodo, pessoas)
+            else:
+                quartos = self.servicos.quartos.listar()
+            termo = normalizar_texto(termo.strip())
+            return [{"id": q.id, "numero": q.numero, "tipo": q.tipo,
+                     "capacidade": q.capacidade, "diaria": formatar_moeda(q.preco_diaria),
+                     "situacao": q.situacao, "texto": self._texto_quarto(q)}
+                    for q in quartos
+                    if not termo or termo in normalizar_texto(q.numero)
+                    or termo in normalizar_texto(q.tipo)]
+
+        JanelaSelecao(self, "Selecionar quarto", COLUNAS_SELECAO_QUARTO, buscar,
+                      lambda linha: escolher(linha["id"], linha["texto"]),
+                      placeholder="Buscar por número ou tipo", opcao=opcao,
+                      informacao=informacao)
+
+    def _periodo_informado(self):
+        """(entrada, saida) se as duas datas do formulário forem válidas; senão None."""
+        try:
+            entrada, saida = ler_data(self.entrada.valor()), ler_data(self.saida.valor())
+            validar_periodo(entrada, saida)
+        except ValueError:
+            return None
+        return entrada, saida
+
+    def _numero_hospedes(self):
+        try:
+            numero = int(self.num.valor())
+        except ValueError:
+            return None
+        return numero if numero >= 1 else None
+
     # ---------- dados ----------
     def ao_exibir(self):
-        self._carregar_opcoes()
+        self._atualizar_selecoes()
         self.atualizar_tabela()
         self.atualizar_resumo()
 
-    def _carregar_opcoes(self):
-        self._hospedes = {f"{h.nome} — {h.cpf}": h.id for h in self.servicos.hospedes.listar()}
-        self._quartos = {f"{q.numero} · {q.tipo} · {formatar_moeda(q.preco_diaria)}/dia": q.id
-                         for q in self.servicos.quartos.listar()}
-        self.hospede.definir_opcoes(list(self._hospedes))
-        self.quarto.definir_opcoes(list(self._quartos))
-        if self.hospede.valor() not in self._hospedes:
-            self.hospede.limpar()
-        if self.quarto.valor() not in self._quartos:
-            self.quarto.limpar()
+    def _atualizar_selecoes(self):
+        """Se o hóspede/quarto escolhido foi editado ou excluído, atualiza ou limpa."""
+        if self.hospede.valor():
+            h = self.servicos.hospedes.buscar_por_id(self.hospede.valor())
+            if h is None:
+                self.hospede.limpar(notificar=False)
+            else:
+                self.hospede.definir(h.id, self._texto_hospede(h), notificar=False)
+        if self.quarto.valor():
+            q = self.servicos.quartos.buscar_por_id(self.quarto.valor())
+            if q is None:
+                self.quarto.limpar(notificar=False)
+            else:
+                self.quarto.definir(q.id, self._texto_quarto(q), notificar=False)
+
+    def _ler_data_filtro(self, entrada):
+        """Data do filtro, ou None enquanto a pessoa ainda está digitando."""
+        texto = entrada.get().strip()
+        return ler_data(texto) if len(texto) == 10 else None
 
     def atualizar_tabela(self):
-        reservas = sorted(self.servicos.reservas.listar(), key=lambda r: r.id, reverse=True)
+        try:
+            situacao = self.filtro_situacao.get()
+            reservas = self.servicos.reservas.pesquisar(
+                self.busca.get(), "" if situacao in ("", TODAS) else situacao,
+                self._ler_data_filtro(self.filtro_de), self._ler_data_filtro(self.filtro_ate))
+        except (ValueError, ErroNegocio) as erro:
+            self.lbl_filtro.configure(text=str(erro), text_color=VERMELHO)
+            return
+        self.lbl_filtro.configure(text=f"{len(reservas)} reserva(s) encontrada(s)",
+                                  text_color=COR_TEXTO_SUAVE)
         self.tabela.carregar(self.servicos.linhas_reservas(reservas))
 
+    def limpar_filtros(self):
+        for entrada in (self.busca, self.filtro_de, self.filtro_ate):
+            entrada.delete(0, "end")
+        self.filtro_situacao.set(TODAS)
+        self.winfo_toplevel().focus_set()   # devolve o texto de exemplo aos campos
+        self.atualizar_tabela()
+
     def _quarto_selecionado(self):
-        quarto_id = self._quartos.get(self.quarto.valor())
+        quarto_id = self.quarto.valor()
         return self.servicos.quartos.buscar_por_id(quarto_id) if quarto_id else None
 
     # ---------- resumo e validação ----------
@@ -163,8 +310,8 @@ class TelaReservas(TelaBase):
 
     # ---------- ações ----------
     def limpar(self):
-        self.hospede.limpar()
-        self.quarto.limpar()
+        self.hospede.limpar(notificar=False)
+        self.quarto.limpar(notificar=False)
         self.num.definir("1")
         hoje = date.today()
         self.entrada.definir(formatar_data(hoje))
@@ -172,7 +319,7 @@ class TelaReservas(TelaBase):
         self.atualizar_resumo()
 
     def confirmar(self):
-        hospede_id = self._hospedes.get(self.hospede.valor())
+        hospede_id = self.hospede.valor()
         if hospede_id is None:
             messagebox.showwarning("Hóspede obrigatório", "Selecione o hóspede da reserva.")
             return

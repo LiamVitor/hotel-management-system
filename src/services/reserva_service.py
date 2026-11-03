@@ -5,6 +5,8 @@ from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
 from src.services import reserva_regras as regras
 from src.services.erros import ErroNegocio
+from src.utils.filtros import normalizar_texto, parece_numerico
+from src.utils.formatacao import apenas_digitos
 from src.utils.constantes import (QUARTO_DISPONIVEL, QUARTO_MANUTENCAO, QUARTO_OCUPADO,
                                   RESERVA_CONFIRMADA, RESERVA_FINALIZADA, RESERVA_HOSPEDADA)
 
@@ -18,6 +20,43 @@ class ReservaService:
     # ---------- consultas ----------
     def listar(self):
         return self.repo.listar()
+
+    def pesquisar(self, termo="", situacao="", periodo_de=None, periodo_ate=None):
+        """Filtra as reservas (mais recentes primeiro). Todos os filtros são opcionais.
+
+        termo:   nome ou CPF do hóspede, número do quarto ou código da reserva
+        situacao: Confirmada, Hospedada, Finalizada ou Cancelada
+        periodo_de / periodo_ate: traz as reservas que ocupam algum dia dentro do período
+        """
+        if periodo_de and periodo_ate and periodo_ate < periodo_de:
+            raise ErroNegocio("No período, a data final deve ser igual ou posterior à inicial.")
+
+        termo = (termo or "").strip()
+        texto = normalizar_texto(termo)
+        digitos = apenas_digitos(termo) if parece_numerico(termo) else ""
+        hospedes = {h.id: h for h in self.hospede_repo.listar()} if termo else {}
+        quartos = {q.id: q for q in self.quarto_repo.listar()} if termo else {}
+
+        encontradas = []
+        for r in self.repo.listar():
+            if situacao and r.situacao != situacao:
+                continue
+            if periodo_de and r.data_saida < periodo_de:
+                continue
+            if periodo_ate and r.data_entrada > periodo_ate:
+                continue
+            if termo:
+                hospede, quarto = hospedes.get(r.hospede_id), quartos.get(r.quarto_id)
+                campos = [f"{r.id:04d}",
+                          normalizar_texto(hospede.nome) if hospede else "",
+                          normalizar_texto(quarto.numero) if quarto else ""]
+                achou = any(texto in campo for campo in campos)
+                if not achou and digitos and hospede:
+                    achou = digitos in apenas_digitos(hospede.cpf)
+                if not achou:
+                    continue
+            encontradas.append(r)
+        return sorted(encontradas, key=lambda r: r.id, reverse=True)
 
     def buscar_por_id(self, reserva_id):
         return self.repo.buscar_por_id(reserva_id)

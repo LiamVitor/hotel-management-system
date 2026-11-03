@@ -1,6 +1,9 @@
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.reserva_repository import ReservaRepository
 from src.services.erros import ErroNegocio
+from src.utils.filtros import normalizar_texto, parece_numerico
+from src.utils.formatacao import apenas_digitos
+from src.utils.validacao import email_valido
 
 
 class HospedeService:
@@ -9,26 +12,53 @@ class HospedeService:
         self.reserva_repo = reserva_repo or ReservaRepository()
 
     def listar(self, termo=""):
-        """Lista hóspedes em ordem alfabética, filtrando por nome ou CPF."""
-        termo = termo.strip().lower()
-        return [h for h in self.repo.listar()
-                if not termo or termo in h.nome.lower() or termo in h.cpf]
+        """Lista hóspedes em ordem alfabética.
+
+        O termo é procurado no nome e no e-mail (sem diferenciar maiúsculas e acentos)
+        e, quando só tem números/símbolos de CPF ou telefone, nos dígitos do CPF e do telefone.
+        """
+        hospedes = self.repo.listar()
+        termo = (termo or "").strip()
+        if not termo:
+            return hospedes
+
+        texto = normalizar_texto(termo)
+        digitos = apenas_digitos(termo) if parece_numerico(termo) else ""
+        encontrados = []
+        for h in hospedes:
+            if (texto in normalizar_texto(h.nome)
+                    or texto in normalizar_texto(h.email or "")
+                    or (digitos and (digitos in apenas_digitos(h.cpf)
+                                     or digitos in apenas_digitos(h.telefone)))):
+                encontrados.append(h)
+        return encontrados
 
     def buscar_por_id(self, hospede_id):
         return self.repo.buscar_por_id(hospede_id)
 
     def salvar(self, hospede):
-        """Cria (id vazio) ou atualiza um hóspede, aplicando as validações."""
+        """Cria (id vazio) ou atualiza um hóspede, aplicando as validações.
+
+        CPF e telefone são guardados só com os dígitos; a máscara é só da interface.
+        """
         hospede.nome = (hospede.nome or "").strip()
-        hospede.cpf = (hospede.cpf or "").strip()
-        hospede.telefone = (hospede.telefone or "").strip() or None
-        hospede.email = (hospede.email or "").strip() or None
+        hospede.cpf = apenas_digitos(hospede.cpf)
+        hospede.telefone = apenas_digitos(hospede.telefone) or None
+        hospede.email = (hospede.email or "").strip().lower() or None
 
         if not hospede.nome or not hospede.cpf:
             raise ErroNegocio("Informe o nome e o CPF.")
-        existente = self.repo.buscar_por_cpf(hospede.cpf)
-        if existente is not None and existente.id != hospede.id:
-            raise ErroNegocio("Já existe um hóspede com este CPF.")
+        if len(hospede.cpf) != 11:
+            raise ErroNegocio("O CPF deve ter 11 dígitos.")
+        if hospede.telefone and len(hospede.telefone) not in (10, 11):
+            raise ErroNegocio("Telefone inválido. Informe o DDD e o número (10 ou 11 dígitos).")
+        if hospede.email and not email_valido(hospede.email):
+            raise ErroNegocio("E-mail inválido. Use o formato nome@dominio.com.")
+
+        # compara só os dígitos, assim cadastros antigos (com pontos e traço) também contam
+        for outro in self.repo.listar():
+            if outro.id != hospede.id and apenas_digitos(outro.cpf) == hospede.cpf:
+                raise ErroNegocio("Já existe um hóspede com este CPF.")
 
         if hospede.id is None:
             return self.repo.criar(hospede)

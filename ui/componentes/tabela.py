@@ -11,15 +11,18 @@ class Tabela(ctk.CTkFrame):
 
     colunas: lista de (titulo, chave, largura_em_pixels)
     acao:    opcional, (texto_do_botao, funcao(linha)) — um botão em cada linha
+    ao_duplo_clique: opcional, funcao(linha) chamada ao clicar duas vezes numa linha
     Cada linha é um dicionário; as chaves das colunas são buscadas nele.
     """
 
-    def __init__(self, master, colunas, altura=200, acao=None, ao_selecionar=None):
+    def __init__(self, master, colunas, altura=200, acao=None, ao_selecionar=None,
+                 ao_duplo_clique=None):
         super().__init__(master, fg_color=COR_CARTAO, border_width=1,
                          border_color=COR_BORDA, corner_radius=8)
         self.colunas = colunas
         self.acao = acao
         self.ao_selecionar = ao_selecionar
+        self.ao_duplo_clique = ao_duplo_clique
         self._linhas = []
         self._itens = []
         self._indice = None
@@ -53,12 +56,16 @@ class Tabela(ctk.CTkFrame):
             item.pack(fill="x")
             item.pack_propagate(False)
             item.bind("<Button-1>", lambda _e, n=i: self._selecionar(n))
+            if self.ao_duplo_clique:
+                item.bind("<Double-Button-1>", lambda _e, n=i: self._duplo_clique(n))
 
             for _titulo, chave, largura in self.colunas:
                 rotulo = ctk.CTkLabel(item, text=str(linha.get(chave, "")), width=largura,
                                       anchor="w", font=fonte(12), text_color=COR_TEXTO)
                 rotulo.pack(side="left", padx=(12, 0))
                 rotulo.bind("<Button-1>", lambda _e, n=i: self._selecionar(n))
+                if self.ao_duplo_clique:
+                    rotulo.bind("<Double-Button-1>", lambda _e, n=i: self._duplo_clique(n))
 
             if self.acao:
                 texto, funcao = self.acao
@@ -78,6 +85,10 @@ class Tabela(ctk.CTkFrame):
         self._itens[indice][0].configure(fg_color=COR_SELECAO)
         if self.ao_selecionar:
             self.ao_selecionar(self._linhas[indice])
+
+    def _duplo_clique(self, indice):
+        self._selecionar(indice)
+        self.ao_duplo_clique(self._linhas[indice])
 
     def selecionado(self):
         """Retorna o dicionário da linha selecionada ou None."""

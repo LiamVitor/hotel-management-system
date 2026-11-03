@@ -2,6 +2,7 @@ from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
 from src.services.erros import ErroNegocio
 from src.utils.constantes import SITUACOES_QUARTO, TIPOS_QUARTO
+from src.utils.filtros import criar_filtro_numerico, normalizar_texto
 
 
 class QuartoService:
@@ -11,6 +12,35 @@ class QuartoService:
 
     def listar(self):
         return self.repo.listar()
+
+    def pesquisar(self, numero="", tipo="", situacao="", capacidade="", diaria=""):
+        """Filtra os quartos. Todos os filtros são opcionais e se combinam (E).
+
+        numero:     parte do número ('10' acha 101, 102, 210...)
+        tipo, situacao: valor exato
+        capacidade, diaria: filtro numérico — '2', '>2', '<=4', '2-4' ou '>500 e <570'
+        """
+        try:
+            filtro_capacidade = criar_filtro_numerico(capacidade)
+            filtro_diaria = criar_filtro_numerico(diaria)
+        except ValueError as erro:
+            raise ErroNegocio(str(erro))
+
+        numero = normalizar_texto((numero or "").strip())
+        encontrados = []
+        for q in self.repo.listar():
+            if numero and numero not in normalizar_texto(q.numero):
+                continue
+            if tipo and q.tipo != tipo:
+                continue
+            if situacao and q.situacao != situacao:
+                continue
+            if filtro_capacidade and not filtro_capacidade(q.capacidade):
+                continue
+            if filtro_diaria and not filtro_diaria(q.preco_diaria):
+                continue
+            encontrados.append(q)
+        return encontrados
 
     def buscar_por_id(self, quarto_id):
         return self.repo.buscar_por_id(quarto_id)
