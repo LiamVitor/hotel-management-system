@@ -15,7 +15,7 @@ from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
 
 USUARIOS = [
-    ("Admin", "admin@pousada.com", "123456")
+    ("Administrador", "admin", "admin123")
 ]
 
 HOSPEDES = [
@@ -64,8 +64,8 @@ def popular():
                 for n, c, t, e in HOSPEDES]
 
     usuarios = [
-        repo_u.criar(Usuario(nome=nome, email=email, senha=senha))
-        for nome, email, senha in USUARIOS
+        repo_u.criar(Usuario(nome=nome, usuario=usuario, senha=senha))
+        for nome, usuario, senha in USUARIOS
     ]
 
     quartos = {numero: repo_q.criar(Quarto(numero=numero, tipo=tipo, capacidade=cap,

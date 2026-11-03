@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS reservas (
 
 
 CREATE TABLE IF NOT EXISTS usuarios (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome      TEXT NOT NULL,
-    email     TEXT NOT NULL UNIQUE,
-    senha     TEXT NOT NULL
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome     TEXT NOT NULL,
+    usuario  TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    senha    TEXT NOT NULL
 );

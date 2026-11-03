@@ -1,39 +1,91 @@
 import customtkinter as ctk
-from tkinter import messagebox
 from src.repositories.usuario_repository import UsuarioRepository
-repo = UsuarioRepository()  
+
+ctk.set_appearance_mode("system")
+ctk.set_default_color_theme("blue")
+
 
 class TelaLogin(ctk.CTk):
+    LARGURA = 420
+    ALTURA = 560
+
     def __init__(self, on_sucesso):
         super().__init__()
-        self.title("Pousada – Login")
-        self.geometry("1280x800")
-        self.resizable(False, False)
+        self.repo = UsuarioRepository()
         self.on_sucesso = on_sucesso
 
-        # Título
-        self.label = ctk.CTkLabel(self, text="Gestão de Hotel", font=("Helvetica", 22, "bold"))
-        self.label.pack(pady=30)
+        self.title("Pousada – Login")
+        self._centralizar(self.LARGURA, self.ALTURA)
+        self.resizable(False, False)
 
-        # Campo Email
-        self.entry_email = ctk.CTkEntry(self, placeholder_text="E-mail", width=280, height=45)
-        self.entry_email.pack(pady=10)
+        card = ctk.CTkFrame(self, corner_radius=16)
+        card.pack(expand=True, fill="both", padx=30, pady=30)
 
-        # Campo Senha
-        self.entry_senha = ctk.CTkEntry(self, placeholder_text="Senha", width=280, height=45, show="*")
-        self.entry_senha.pack(pady=10)
+        ctk.CTkLabel(
+            card, text="Gestão de Hotel",
+            font=ctk.CTkFont(size=26, weight="bold"),
+        ).pack(pady=(45, 4))
+        ctk.CTkLabel(
+            card, text="Entre com suas credenciais", text_color="gray",
+        ).pack(pady=(0, 30))
 
-        # Botão Entrar
-        self.btn_entrar = ctk.CTkButton(self, text="Entrar", width=280, height=45, command=self.verificar_login)
-        self.btn_entrar.pack(pady=20)
+        self.entry_usuario = ctk.CTkEntry(
+            card, placeholder_text="Usuário", width=280, height=45,
+        )
+        self.entry_usuario.pack(pady=8)
+
+        self.entry_senha = ctk.CTkEntry(
+            card, placeholder_text="Senha", width=280, height=45, show="•",
+        )
+        self.entry_senha.pack(pady=8)
+
+        self.var_mostrar = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            card, text="Mostrar senha",
+            variable=self.var_mostrar, command=self._alternar_senha,
+        ).pack(anchor="w", padx=(40, 0), pady=(6, 0))
+
+        self.label_erro = ctk.CTkLabel(card, text="", text_color="#e74c3c")
+        self.label_erro.pack(pady=(12, 0))
+
+        self.btn_entrar = ctk.CTkButton(
+            card, text="Entrar", width=280, height=45,
+            font=ctk.CTkFont(size=15, weight="bold"),
+            command=self.verificar_login,
+        )
+        self.btn_entrar.pack(pady=(10, 0))
+
+        self.bind("<Return>", lambda _e: self.verificar_login())
+        self.after(200, self.entry_usuario.focus)
+
+    def _centralizar(self, largura, altura):
+        x = (self.winfo_screenwidth() - largura) // 2
+        y = (self.winfo_screenheight() - altura) // 2
+        self.geometry(f"{largura}x{altura}+{x}+{y}")
+
+    def _alternar_senha(self):
+        self.entry_senha.configure(show="" if self.var_mostrar.get() else "•")
+
+    def _mostrar_erro(self, mensagem):
+        self.label_erro.configure(text=mensagem)
 
     def verificar_login(self):
-        email = self.entry_email.get()
+        usuario = self.entry_usuario.get().strip()
         senha = self.entry_senha.get()
-        
-        usuario_logado = repo.validar_login(email, senha)
-        if usuario_logado:
-            self.destroy()      # Fecha a janela de login
-            self.on_sucesso()   # Callback para abrir o App principal
+
+        if not usuario or not senha:
+            self._mostrar_erro("Preencha o usuário e a senha.")
+            return
+
+        self.btn_entrar.configure(state="disabled", text="Entrando...")
+        self.update_idletasks()
+
+        logado = self.repo.validar_login(usuario, senha)
+        if logado:
+            self.destroy()
+            self.on_sucesso()
         else:
-            messagebox.showerror("Erro de Autenticação", "E-mail ou senha incorretos.")
+            self.btn_entrar.configure(state="normal", text="Entrar")
+            self.entry_senha.delete(0, "end")
+            self.entry_senha.focus()
+            self._mostrar_erro("Usuário ou senha incorretos.")
