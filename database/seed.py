@@ -14,8 +14,10 @@ from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
 
-USUARIOS = [
-    ("Administrador", "admin", "admin123")
+USUARIOS = [  # nome, usuário, senha, perfil
+    ("Administrador", "admin", "admin123", "admin"),
+    ("Marina Souza", "gerente", "1234123", "gerente"),
+    ("Rafael Lima", "recepcao", "123123", "recepcionista"),
 ]
 
 HOSPEDES = [
@@ -56,17 +58,18 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
 def popular():
     inicializar_banco()
     repo_h, repo_q, repo_r, repo_u = HospedeRepository(), QuartoRepository(), ReservaRepository(), UsuarioRepository()
+
+    # usuários de exemplo: cria só os que ainda não existem (não duplica nem apaga nada)
+    for nome, usuario, senha, perfil in USUARIOS:
+        if repo_u.buscar_por_usuario(usuario) is None:
+            repo_u.criar(Usuario(nome=nome, usuario=usuario, senha=senha, perfil=perfil))
+
     if repo_h.listar() or repo_q.listar() or repo_r.listar():
         print("O banco já tem dados. Nada foi alterado.")
         return
 
     hospedes = [repo_h.criar(Hospede(nome=n, cpf=c, telefone=t, email=e))
                 for n, c, t, e in HOSPEDES]
-
-    usuarios = [
-        repo_u.criar(Usuario(nome=nome, usuario=usuario, senha=senha))
-        for nome, usuario, senha in USUARIOS
-    ]
 
     quartos = {numero: repo_q.criar(Quarto(numero=numero, tipo=tipo, capacidade=cap,
                                            preco_diaria=preco, situacao=situacao))

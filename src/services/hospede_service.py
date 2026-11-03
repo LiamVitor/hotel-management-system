@@ -3,6 +3,7 @@ from src.repositories.reserva_repository import ReservaRepository
 from src.services.erros import ErroNegocio
 from src.utils.filtros import normalizar_texto, parece_numerico
 from src.utils.formatacao import apenas_digitos
+from src.utils.sessao import Sessao
 from src.utils.validacao import email_valido
 
 
@@ -41,6 +42,7 @@ class HospedeService:
 
         CPF e telefone são guardados só com os dígitos; a máscara é só da interface.
         """
+        Sessao.exigir("hospedes.salvar")
         hospede.nome = (hospede.nome or "").strip()
         hospede.cpf = apenas_digitos(hospede.cpf)
         hospede.telefone = apenas_digitos(hospede.telefone) or None
@@ -66,6 +68,7 @@ class HospedeService:
         return hospede
 
     def excluir(self, hospede_id):
+        Sessao.exigir("hospedes.excluir")
         if self.reserva_repo.listar_por_hospede(hospede_id):
             raise ErroNegocio("Este hóspede possui reservas e não pode ser excluído.")
         self.repo.remover(hospede_id)

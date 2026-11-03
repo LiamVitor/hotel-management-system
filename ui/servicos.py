@@ -2,6 +2,7 @@
 from src.services.hospede_service import HospedeService
 from src.services.quarto_service import QuartoService
 from src.services.reserva_service import ReservaService
+from src.services.usuario_service import UsuarioService
 from src.utils.formatacao import formatar_data, formatar_moeda
 
 
@@ -10,6 +11,7 @@ class Servicos:
         self.hospedes = HospedeService()
         self.quartos = QuartoService()
         self.reservas = ReservaService()
+        self.usuarios = UsuarioService()
 
     def linhas_reservas(self, reservas):
         """Converte reservas em dicionários prontos para as tabelas."""

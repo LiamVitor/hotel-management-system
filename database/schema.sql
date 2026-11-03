@@ -34,5 +34,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     nome     TEXT NOT NULL,
     usuario  TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    senha    TEXT NOT NULL
+    senha    TEXT NOT NULL,
+    perfil   TEXT NOT NULL DEFAULT 'recepcionista'
+             CHECK (perfil IN ('admin', 'gerente', 'recepcionista')),
+    ativo    INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1))
 );

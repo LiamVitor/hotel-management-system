@@ -1,5 +1,6 @@
 import customtkinter as ctk
-from src.repositories.usuario_repository import UsuarioRepository
+from src.services.erros import ErroNegocio
+from src.services.usuario_service import UsuarioService
 
 ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("blue")
@@ -9,10 +10,11 @@ class TelaLogin(ctk.CTk):
     LARGURA = 420
     ALTURA = 560
 
-    def __init__(self, on_sucesso):
+    def __init__(self, on_sucesso=None):
         super().__init__()
-        self.repo = UsuarioRepository()
-        self.on_sucesso = on_sucesso
+        self.servico = UsuarioService()
+        self.on_sucesso = on_sucesso      # opcional: funcao(usuario) chamada após o login
+        self.usuario_logado = None        # fica com o usuário se o login der certo
 
         self.title("Pousada – Login")
         self._centralizar(self.LARGURA, self.ALTURA)
@@ -45,7 +47,7 @@ class TelaLogin(ctk.CTk):
             variable=self.var_mostrar, command=self._alternar_senha,
         ).pack(anchor="w", padx=(40, 0), pady=(6, 0))
 
-        self.label_erro = ctk.CTkLabel(card, text="", text_color="#e74c3c")
+        self.label_erro = ctk.CTkLabel(card, text="", text_color="#e74c3c", wraplength=280)
         self.label_erro.pack(pady=(12, 0))
 
         self.btn_entrar = ctk.CTkButton(
@@ -80,12 +82,19 @@ class TelaLogin(ctk.CTk):
         self.btn_entrar.configure(state="disabled", text="Entrando...")
         self.update_idletasks()
 
-        logado = self.repo.validar_login(usuario, senha)
+        try:
+            logado = self.servico.autenticar(usuario, senha)
+            erro = "" if logado else "Usuário ou senha incorretos."
+        except ErroNegocio as problema:   # conta desativada
+            logado, erro = None, str(problema)
+
         if logado:
+            self.usuario_logado = logado
             self.destroy()
-            self.on_sucesso()
+            if self.on_sucesso:
+                self.on_sucesso(logado)
         else:
             self.btn_entrar.configure(state="normal", text="Entrar")
             self.entry_senha.delete(0, "end")
             self.entry_senha.focus()
-            self._mostrar_erro("Usuário ou senha incorretos.")
+            self._mostrar_erro(erro)

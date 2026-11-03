@@ -16,6 +16,7 @@ from ui.estilos import (AZUL, COR_BORDA_CAMPO, COR_SELECAO, COR_TEXTO, COR_TEXTO
 from ui.telas.tela_base import TelaBase
 from src.utils.constantes import QUARTO_MANUTENCAO, SITUACOES_RESERVA
 from src.utils.filtros import normalizar_texto
+from src.utils.sessao import Sessao
 from src.utils.formatacao import (formatar_cpf, formatar_data, formatar_moeda,
                                   formatar_telefone, ler_data, mascara_data)
 
@@ -105,7 +106,9 @@ class TelaReservas(TelaBase):
         # a barra de ações é empacotada antes da tabela, embaixo, para nunca ser espremida
         acoes = ctk.CTkFrame(lista, fg_color="transparent")
         acoes.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
-        botao_perigo(acoes, "Cancelar reserva selecionada", self.cancelar, 240).pack(side="left")
+        if Sessao.pode("reservas.cancelar"):
+            botao_perigo(acoes, "Cancelar reserva selecionada", self.cancelar, 240
+                         ).pack(side="left")
         self.lbl_filtro = ctk.CTkLabel(acoes, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
         self.lbl_filtro.pack(side="left", padx=14)
 

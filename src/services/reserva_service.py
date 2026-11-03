@@ -7,6 +7,7 @@ from src.services import reserva_regras as regras
 from src.services.erros import ErroNegocio
 from src.utils.filtros import normalizar_texto, parece_numerico
 from src.utils.formatacao import apenas_digitos
+from src.utils.sessao import Sessao
 from src.utils.constantes import (QUARTO_DISPONIVEL, QUARTO_MANUTENCAO, QUARTO_OCUPADO,
                                   RESERVA_CONFIRMADA, RESERVA_FINALIZADA, RESERVA_HOSPEDADA)
 
@@ -66,6 +67,7 @@ class ReservaService:
 
     # ---------- criação ----------
     def criar_reserva(self, hospede_id, quarto_id, entrada, saida, numero_hospedes):
+        Sessao.exigir("reservas.criar")
         try:
             regras.validar_periodo(entrada, saida)
         except ValueError as erro:
@@ -98,18 +100,21 @@ class ReservaService:
 
     # ---------- mudanças de situação ----------
     def cancelar(self, reserva_id):
+        Sessao.exigir("reservas.cancelar")
         reserva = self._obter(reserva_id)
         if not regras.pode_cancelar(reserva):
             raise ErroNegocio("Só é possível cancelar reservas confirmadas, antes do check-in.")
         self.repo.cancelar(reserva_id)
 
     def fazer_checkin(self, reserva_id):
+        Sessao.exigir("reservas.checkin")
         reserva = self._obter(reserva_id)
         if not regras.pode_fazer_checkin(reserva):
             raise ErroNegocio("O check-in só é permitido para reservas confirmadas.")
         return self._trocar_situacao(reserva, RESERVA_HOSPEDADA, QUARTO_OCUPADO)
 
     def fazer_checkout(self, reserva_id):
+        Sessao.exigir("reservas.checkin")
         reserva = self._obter(reserva_id)
         if reserva.situacao != RESERVA_HOSPEDADA:
             raise ErroNegocio("O check-out só é permitido para hóspedes hospedados.")

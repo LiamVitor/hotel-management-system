@@ -5,6 +5,7 @@ import customtkinter as ctk
 from src.models.hospede import Hospede
 from src.services.erros import ErroNegocio
 from src.utils.formatacao import formatar_cpf, formatar_telefone
+from src.utils.sessao import Sessao
 from src.utils.validacao import email_valido
 from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
 from ui.componentes.campos import CampoTexto
@@ -64,7 +65,8 @@ class TelaHospedes(TelaBase):
         acoes = ctk.CTkFrame(lista, fg_color="transparent")
         acoes.pack(side="bottom", anchor="w", padx=20, pady=(0, 16))
         botao_secundario(acoes, "Editar selecionado", self.editar, 160).pack(side="left")
-        botao_perigo(acoes, "Excluir selecionado", self.excluir, 160).pack(side="left", padx=10)
+        if Sessao.pode("hospedes.excluir"):
+            botao_perigo(acoes, "Excluir selecionado", self.excluir, 160).pack(side="left", padx=10)
 
         self.tabela = Tabela(lista, COLUNAS, altura=120)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(12, 8))

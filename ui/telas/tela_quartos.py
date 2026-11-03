@@ -12,6 +12,7 @@ from ui.estilos import COR_TEXTO_SUAVE, VERMELHO, fonte
 from ui.telas.tela_base import TelaBase
 from src.utils.constantes import QUARTO_DISPONIVEL, SITUACOES_QUARTO, TIPOS_QUARTO
 from src.utils.formatacao import formatar_moeda
+from src.utils.sessao import Sessao
 
 COLUNAS = [("Número", "numero", 100), ("Tipo", "tipo", 150), ("Capacidade", "capacidade", 130),
            ("Diária", "diaria", 150), ("Status", "situacao", 160)]
@@ -26,8 +27,10 @@ class TelaQuartos(TelaBase):
         super().__init__(master, servicos)
         self.editando = None
 
+        pode_alterar = Sessao.pode("quartos.salvar")
         form = Cartao(self.corpo, "Cadastro de quarto")
-        form.pack(fill="x")
+        if pode_alterar:   # sem permissão, o formulário nem aparece (a tela vira só consulta)
+            form.pack(fill="x")
         grade = ctk.CTkFrame(form, fg_color="transparent")
         grade.pack(fill="x", padx=20)
         grade.grid_columnconfigure((0, 1, 2), weight=1, uniform="campos")
@@ -49,13 +52,15 @@ class TelaQuartos(TelaBase):
         botao_secundario(botoes, "Limpar", self.limpar).pack(side="left", padx=10)
 
         lista = Cartao(self.corpo, "Quartos cadastrados")
-        lista.pack(fill="both", expand=True, pady=(16, 0))
+        lista.pack(fill="both", expand=True, pady=(16, 0) if pode_alterar else 0)
         self._montar_filtros(lista)
 
         acoes = ctk.CTkFrame(lista, fg_color="transparent")
         acoes.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
-        botao_secundario(acoes, "Editar selecionado", self.editar, 160).pack(side="left")
-        botao_perigo(acoes, "Excluir selecionado", self.excluir, 160).pack(side="left", padx=10)
+        if pode_alterar:
+            botao_secundario(acoes, "Editar selecionado", self.editar, 160).pack(side="left")
+        if Sessao.pode("quartos.excluir"):
+            botao_perigo(acoes, "Excluir selecionado", self.excluir, 160).pack(side="left", padx=10)
         self.lbl_filtro = ctk.CTkLabel(acoes, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
         self.lbl_filtro.pack(side="left", padx=10)
 

@@ -31,9 +31,11 @@ class CampoTexto(ctk.CTkFrame):
 
     mascara: função texto -> texto formatado, aplicada enquanto a pessoa digita
              (ex.: formatar_cpf, formatar_telefone, mascara_data).
+    ocultar: mostra bolinhas no lugar do texto (campos de senha).
     """
 
-    def __init__(self, master, rotulo, placeholder="", ao_mudar=None, mascara=None):
+    def __init__(self, master, rotulo, placeholder="", ao_mudar=None, mascara=None,
+                 ocultar=False):
         super().__init__(master, fg_color="transparent")
         self._mascara = mascara
         self._ao_mudar = ao_mudar
@@ -42,7 +44,7 @@ class CampoTexto(ctk.CTkFrame):
         self.entrada = ctk.CTkEntry(self, placeholder_text=placeholder, height=36,
                                     fg_color="white", border_color=COR_BORDA_CAMPO,
                                     text_color=COR_TEXTO, placeholder_text_color="#9CA3AF",
-                                    font=fonte(13))
+                                    font=fonte(13), show="•" if ocultar else "")
         self.entrada.pack(fill="x", pady=(4, 0))
         if mascara or ao_mudar:
             self.entrada.bind("<KeyRelease>", self._ao_digitar)
@@ -55,6 +57,10 @@ class CampoTexto(ctk.CTkFrame):
 
     def valor(self):
         return self.entrada.get().strip()
+
+    def valor_sem_cortar(self):
+        """Texto exatamente como digitado (para senhas, em que espaços contam)."""
+        return self.entrada.get()
 
     def definir(self, texto):
         texto = str(texto)

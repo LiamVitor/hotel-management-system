@@ -3,6 +3,7 @@ from src.repositories.reserva_repository import ReservaRepository
 from src.services.erros import ErroNegocio
 from src.utils.constantes import SITUACOES_QUARTO, TIPOS_QUARTO
 from src.utils.filtros import criar_filtro_numerico, normalizar_texto
+from src.utils.sessao import Sessao
 
 
 class QuartoService:
@@ -50,6 +51,7 @@ class QuartoService:
 
     def salvar(self, quarto):
         """Cria (id vazio) ou atualiza um quarto, aplicando as validações."""
+        Sessao.exigir("quartos.salvar")
         quarto.numero = (quarto.numero or "").strip()
         if not quarto.numero:
             raise ErroNegocio("Informe o número do quarto.")
@@ -71,6 +73,7 @@ class QuartoService:
         return quarto
 
     def excluir(self, quarto_id):
+        Sessao.exigir("quartos.excluir")
         if self.reserva_repo.listar_por_quarto(quarto_id):
             raise ErroNegocio("Este quarto possui reservas. Se não for mais usado, "
                               "altere o status para Manutenção.")
