@@ -7,6 +7,7 @@ from src.services.erros import ErroNegocio
 from src.services.reserva_regras import (calcular_diarias, calcular_total, pode_cancelar,
                                          validar_capacidade, validar_periodo)
 from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
+from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoTexto, reformatar_entrada
 from ui.componentes.cartao import Cartao
 from ui.componentes.seletor import CampoSeletor, JanelaSelecao
@@ -61,10 +62,10 @@ class TelaReservas(TelaBase):
         self.quarto = CampoSeletor(grade, "Quarto", "Clique para pesquisar e escolher o quarto…",
                                    self._abrir_selecao_quarto, self.atualizar_resumo)
         self.num = CampoTexto(grade, "Nº de hóspedes", "1", self.atualizar_resumo)
-        self.entrada = CampoTexto(grade, "Data de entrada", "dd/mm/aaaa", self.atualizar_resumo,
-                                  mascara=mascara_data)
-        self.saida = CampoTexto(grade, "Data de saída", "dd/mm/aaaa", self.atualizar_resumo,
-                                mascara=mascara_data)
+        self.entrada = CampoData(grade, "Data de entrada", self.atualizar_resumo,
+                                 ao_escolher=self._ao_escolher_entrada)
+        self.saida = CampoData(grade, "Data de saída", self.atualizar_resumo,
+                               data_minima=self._menor_data_de_saida)
         self.hospede.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 10))
         self.quarto.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 10))
         self.num.grid(row=2, column=0, sticky="ew", padx=(0, 8))
@@ -150,6 +151,19 @@ class TelaReservas(TelaBase):
             self.atualizar_tabela()
         entrada.bind("<KeyRelease>", ao_digitar)
         return entrada
+
+    # ---------- datas ----------
+    def _menor_data_de_saida(self):
+        """No calendário da saída, os dias até a entrada ficam bloqueados."""
+        entrada = self.entrada.data()
+        return entrada + timedelta(days=1) if entrada else None
+
+    def _ao_escolher_entrada(self, entrada):
+        """Escolheu a entrada no calendário: se a saída ficou vazia ou não é posterior,
+        leva a saída para o dia seguinte."""
+        saida = self.saida.data()
+        if saida is None or saida <= entrada:
+            self.saida.definir(formatar_data(entrada + timedelta(days=1)))
 
     # ---------- escolha de hóspede e quarto ----------
     @staticmethod
