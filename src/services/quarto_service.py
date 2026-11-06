@@ -2,7 +2,9 @@ from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
 from src.services.erros import ErroNegocio
 from src.utils.constantes import SITUACOES_QUARTO, TIPOS_QUARTO
-from src.utils.filtros import criar_filtro_numerico, normalizar_texto
+from src.utils.alteracoes import calcular_alteracoes
+from src.utils.filtros import criar_filtro_faixa, normalizar_texto
+from src.utils.formatacao import formatar_moeda
 from src.utils.sessao import Sessao
 
 
@@ -14,16 +16,18 @@ class QuartoService:
     def listar(self):
         return self.repo.listar()
 
-    def pesquisar(self, numero="", tipo="", situacao="", capacidade="", diaria=""):
+    def pesquisar(self, numero="", tipo="", situacao="", capacidade_min="", capacidade_max="",
+                  diaria_min="", diaria_max=""):
         """Filtra os quartos. Todos os filtros são opcionais e se combinam (E).
 
         numero:     parte do número ('10' acha 101, 102, 210...)
         tipo, situacao: valor exato
-        capacidade, diaria: filtro numérico — '2', '>2', '<=4', '2-4' ou '>500 e <570'
+        capacidade_min/max, diaria_min/max: faixa com os limites incluídos; qualquer lado
+                    pode ficar vazio (sem limite)
         """
         try:
-            filtro_capacidade = criar_filtro_numerico(capacidade)
-            filtro_diaria = criar_filtro_numerico(diaria)
+            filtro_capacidade = criar_filtro_faixa(capacidade_min, capacidade_max)
+            filtro_diaria = criar_filtro_faixa(diaria_min, diaria_max)
         except ValueError as erro:
             raise ErroNegocio(str(erro))
 
@@ -49,8 +53,8 @@ class QuartoService:
     def listar_disponiveis(self, entrada, saida, capacidade_minima=1):
         return self.repo.listar_disponiveis(entrada, saida, capacidade_minima)
 
-    def salvar(self, quarto):
-        """Cria (id vazio) ou atualiza um quarto, aplicando as validações."""
+    def validar(self, quarto):
+        """Normaliza e valida os dados, sem gravar nada. Levanta ErroNegocio se algo estiver errado."""
         Sessao.exigir("quartos.salvar")
         quarto.numero = (quarto.numero or "").strip()
         if not quarto.numero:
@@ -67,6 +71,22 @@ class QuartoService:
         if existente is not None and existente.id != quarto.id:
             raise ErroNegocio("Já existe um quarto com este número.")
 
+    def diferencas(self, quarto):
+        """O que muda ao salvar este quarto já validado (lista de Alteracao, vazia se nada mudou)."""
+        atual = self.repo.buscar_por_id(quarto.id)
+        if atual is None:
+            raise ErroNegocio("Quarto não encontrado.")
+        return calcular_alteracoes([
+            ("Número", atual.numero, quarto.numero),
+            ("Tipo", atual.tipo, quarto.tipo),
+            ("Capacidade", atual.capacidade, quarto.capacidade),
+            ("Diária", formatar_moeda(atual.preco_diaria), formatar_moeda(quarto.preco_diaria)),
+            ("Status", atual.situacao, quarto.situacao),
+        ])
+
+    def salvar(self, quarto):
+        """Cria (id vazio) ou atualiza um quarto, aplicando as validações."""
+        self.validar(quarto)
         if quarto.id is None:
             return self.repo.criar(quarto)
         self.repo.atualizar(quarto)

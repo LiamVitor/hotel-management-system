@@ -9,6 +9,7 @@ from src.utils.sessao import Sessao
 from ui.componentes.botoes import botao_primario, botao_secundario
 from ui.componentes.campos import CampoSelecao, CampoTexto
 from ui.componentes.cartao import Cartao
+from ui.componentes.janela_confirmacao import confirmar_alteracoes
 from ui.componentes.tabela import Tabela
 from ui.estilos import COR_TEXTO_SUAVE, fonte
 from ui.telas.tela_base import TelaBase
@@ -95,6 +96,21 @@ class TelaUsuarios(TelaBase):
         usuario = Usuario(id=self.editando, nome=self.nome.valor(), usuario=self.usuario.valor(),
                           perfil=PERFIL_POR_ROTULO.get(self.perfil.valor(), ""),
                           ativo=self.situacao.valor() == ATIVO)
+        try:
+            self.servicos.usuarios.validar(usuario, senha or None)
+            mudancas = (self.servicos.usuarios.diferencas(usuario, senha or None)
+                        if editando else [])
+        except ErroNegocio as erro:
+            messagebox.showerror("Não foi possível salvar", str(erro))
+            return
+        if editando:
+            if not mudancas:
+                messagebox.showinfo("Nada para salvar", "Nenhuma informação foi alterada.")
+                return
+            if not confirmar_alteracoes(
+                    self, "Confirmar alteração do usuário",
+                    f"Revise o que será modificado no usuário {usuario.usuario}:", mudancas):
+                return
         try:
             self.servicos.usuarios.salvar(usuario, senha or None)
         except ErroNegocio as erro:

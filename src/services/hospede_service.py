@@ -1,8 +1,9 @@
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.reserva_repository import ReservaRepository
 from src.services.erros import ErroNegocio
+from src.utils.alteracoes import calcular_alteracoes
 from src.utils.filtros import normalizar_texto, parece_numerico
-from src.utils.formatacao import apenas_digitos
+from src.utils.formatacao import apenas_digitos, formatar_cpf, formatar_telefone
 from src.utils.sessao import Sessao
 from src.utils.validacao import email_valido
 
@@ -37,8 +38,8 @@ class HospedeService:
     def buscar_por_id(self, hospede_id):
         return self.repo.buscar_por_id(hospede_id)
 
-    def salvar(self, hospede):
-        """Cria (id vazio) ou atualiza um hóspede, aplicando as validações.
+    def validar(self, hospede):
+        """Normaliza e valida os dados, sem gravar nada. Levanta ErroNegocio se algo estiver errado.
 
         CPF e telefone são guardados só com os dígitos; a máscara é só da interface.
         """
@@ -62,6 +63,21 @@ class HospedeService:
             if outro.id != hospede.id and apenas_digitos(outro.cpf) == hospede.cpf:
                 raise ErroNegocio("Já existe um hóspede com este CPF.")
 
+    def diferencas(self, hospede):
+        """O que muda ao salvar este hóspede já validado (lista de Alteracao, vazia se nada mudou)."""
+        atual = self.repo.buscar_por_id(hospede.id)
+        if atual is None:
+            raise ErroNegocio("Hóspede não encontrado.")
+        return calcular_alteracoes([
+            ("Nome", atual.nome, hospede.nome),
+            ("CPF", formatar_cpf(atual.cpf), formatar_cpf(hospede.cpf)),
+            ("Telefone", formatar_telefone(atual.telefone), formatar_telefone(hospede.telefone)),
+            ("E-mail", atual.email, hospede.email),
+        ])
+
+    def salvar(self, hospede):
+        """Cria (id vazio) ou atualiza um hóspede, aplicando as validações."""
+        self.validar(hospede)
         if hospede.id is None:
             return self.repo.criar(hospede)
         self.repo.atualizar(hospede)

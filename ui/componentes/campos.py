@@ -26,6 +26,18 @@ def reformatar_entrada(entrada, mascara):
     entrada.icursor(nova_posicao)
 
 
+def somente_numero(texto):
+    """Mantém só dígitos e um separador decimal (vírgula ou ponto): impede digitar '>', '-' etc."""
+    saida, tem_separador = [], False
+    for caractere in texto:
+        if caractere.isdigit():
+            saida.append(caractere)
+        elif caractere in ",." and saida and not tem_separador:
+            saida.append(caractere)
+            tem_separador = True
+    return "".join(saida)
+
+
 class CampoTexto(ctk.CTkFrame):
     """Rótulo + campo de texto.
 
@@ -107,3 +119,47 @@ class CampoSelecao(ctk.CTkFrame):
 
     def limpar(self):
         self.caixa.set("")
+
+
+class CampoFaixa(ctk.CTkFrame):
+    """Rótulo + dois campos numéricos, mínimo e máximo, para pesquisar por faixa de valores.
+
+    Os limites entram na pesquisa (mín. 2 e máx. 4 aceita 2, 3 e 4) e qualquer um
+    dos dois pode ficar vazio.
+    """
+
+    def __init__(self, master, rotulo, ao_mudar=None):
+        super().__init__(master, fg_color="transparent")
+        self._ao_mudar = ao_mudar
+        ctk.CTkLabel(self, text=rotulo, font=fonte(12, True), text_color=COR_TEXTO_SUAVE
+                     ).pack(anchor="w")
+        linha = ctk.CTkFrame(self, fg_color="transparent")
+        linha.pack(fill="x", pady=(4, 0))
+        linha.grid_columnconfigure((0, 1), weight=1, uniform="faixa")
+        self.entrada_min = self._criar_entrada(linha, "Mín.", 0, (0, 3))
+        self.entrada_max = self._criar_entrada(linha, "Máx.", 1, (3, 0))
+
+    def _criar_entrada(self, pai, placeholder, coluna, espaco):
+        entrada = ctk.CTkEntry(pai, placeholder_text=placeholder, width=40, height=36,
+                               fg_color="white", border_color=COR_BORDA_CAMPO,
+                               text_color=COR_TEXTO, placeholder_text_color="#9CA3AF",
+                               font=fonte(13))
+        entrada.grid(row=0, column=coluna, sticky="ew", padx=espaco)
+        entrada.bind("<KeyRelease>", lambda _e: self._ao_digitar(entrada))
+        return entrada
+
+    def _ao_digitar(self, entrada):
+        reformatar_entrada(entrada, somente_numero)
+        if self._ao_mudar:
+            self._ao_mudar()
+
+    def minimo(self):
+        return self.entrada_min.get().strip()
+
+    def maximo(self):
+        return self.entrada_max.get().strip()
+
+    def limpar(self):
+        self.entrada_min.delete(0, "end")
+        self.entrada_max.delete(0, "end")
+        self.winfo_toplevel().focus_set()   # devolve o texto de exemplo aos campos

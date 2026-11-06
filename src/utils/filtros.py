@@ -1,21 +1,11 @@
-"""Apoio para pesquisas: texto sem acento e filtros numéricos como '>500 e <570'."""
+"""Apoio para pesquisas: texto sem acento e faixas de valores (mínimo e máximo)."""
 import re
 import unicodedata
 
-MENSAGEM_FILTRO_NUMERICO = ("Filtro inválido. Use um número (2), uma comparação (>2, <=4), "
-                            "uma faixa (2-4) ou duas condições (>500 e <570).")
+MENSAGEM_FAIXA_INVALIDA = "Use apenas números nos campos de mínimo e máximo (ex.: 2 ou 180,50)."
+MENSAGEM_FAIXA_INVERTIDA = "O valor mínimo não pode ser maior que o máximo."
 
-_NUMERO = r"\d+(?:[.,]\d+)?"
-_CONDICAO = re.compile(rf"(>=|<=|>|<|=)?\s*({_NUMERO})")
-_FAIXA = re.compile(rf"({_NUMERO})\s*-\s*({_NUMERO})")
-
-_COMPARACOES = {
-    ">": lambda valor, limite: valor > limite,
-    ">=": lambda valor, limite: valor >= limite,
-    "<": lambda valor, limite: valor < limite,
-    "<=": lambda valor, limite: valor <= limite,
-    "=": lambda valor, limite: valor == limite,
-}
+_NUMERO = re.compile(r"\d+(?:[.,]\d*)?")
 
 
 def normalizar_texto(texto):
@@ -24,32 +14,30 @@ def normalizar_texto(texto):
     return "".join(c for c in base if unicodedata.category(c) != "Mn")
 
 
-def _numero(texto):
+def _numero_ou_none(texto):
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    if not _NUMERO.fullmatch(texto):
+        raise ValueError(MENSAGEM_FAIXA_INVALIDA)
     return float(texto.replace(",", "."))
 
 
-def criar_filtro_numerico(texto):
-    """Converte o texto digitado em uma função valor -> bool.
+def criar_filtro_faixa(minimo, maximo):
+    """Converte os textos de mínimo e máximo em uma função valor -> bool.
 
-    Aceita: '2' (igual), '>2', '>=2', '<570', '2-4' (faixa) e '>500 e <570'.
-    Devolve None se o texto estiver vazio e levanta ValueError se for inválido.
+    Os dois limites entram na faixa (mínimo 2 e máximo 4 aceita 2, 3 e 4). Qualquer um
+    dos lados pode ficar vazio, e então aquele lado fica sem limite. Devolve None se
+    os dois estiverem vazios e levanta ValueError se algum não for número ou se
+    o mínimo for maior que o máximo.
     """
-    texto = (texto or "").strip().lower()
-    if not texto:
+    menor, maior = _numero_ou_none(minimo), _numero_ou_none(maximo)
+    if menor is None and maior is None:
         return None
-
-    faixa = _FAIXA.fullmatch(texto)
-    if faixa:
-        a, b = _numero(faixa.group(1)), _numero(faixa.group(2))
-        minimo, maximo = min(a, b), max(a, b)
-        return lambda valor: minimo <= valor <= maximo
-
-    texto = re.sub(r"\s+e\s+", " ", texto)
-    condicoes = [(op or "=", _numero(num)) for op, num in _CONDICAO.findall(texto)]
-    sobra = _CONDICAO.sub("", texto).strip()
-    if not condicoes or sobra:
-        raise ValueError(MENSAGEM_FILTRO_NUMERICO)
-    return lambda valor: all(_COMPARACOES[op](valor, limite) for op, limite in condicoes)
+    if menor is not None and maior is not None and menor > maior:
+        raise ValueError(MENSAGEM_FAIXA_INVERTIDA)
+    return lambda valor: ((menor is None or valor >= menor)
+                          and (maior is None or valor <= maior))
 
 
 def parece_numerico(texto):

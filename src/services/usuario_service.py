@@ -2,7 +2,8 @@ import re
 
 from src.repositories.usuario_repository import UsuarioRepository
 from src.services.erros import ErroNegocio, ErroPermissao
-from src.utils.permissoes import ADMIN, PERFIS
+from src.utils.alteracoes import Alteracao, calcular_alteracoes
+from src.utils.permissoes import ADMIN, PERFIS, rotulo_perfil
 from src.utils.sessao import Sessao
 
 LOGIN_RE = re.compile(r"^[A-Za-z0-9_.-]{3,30}$")
@@ -35,8 +36,11 @@ class UsuarioService:
         Sessao.exigir("usuarios.gerenciar")
         return self.repo.buscar_por_id(usuario_id)
 
-    def salvar(self, usuario, senha=None):
-        """Cria (id vazio) ou atualiza um usuário. Ao editar, senha vazia mantém a atual."""
+    def validar(self, usuario, senha=None):
+        """Normaliza e valida os dados, sem gravar nada. Levanta ErroNegocio se algo estiver errado.
+
+        Ao editar, senha vazia significa manter a atual.
+        """
         Sessao.exigir("usuarios.gerenciar")
         usuario.nome = (usuario.nome or "").strip()
         usuario.usuario = (usuario.usuario or "").strip()
@@ -53,15 +57,40 @@ class UsuarioService:
 
         if usuario.id is None:
             self._validar_senha(senha, obrigatoria=True)
-            usuario.senha = senha
-            return self.repo.criar(usuario)
-
+            return
         atual = self.repo.buscar_por_id(usuario.id)
         if atual is None:
             raise ErroNegocio("Usuário não encontrado.")
         self._validar_mudanca_de_acesso(atual, usuario.perfil, usuario.ativo)
         if senha:
             self._validar_senha(senha)
+
+    def diferencas(self, usuario, senha=None):
+        """O que muda ao salvar este usuário já validado (lista de Alteracao).
+
+        A senha nunca tem o valor exposto: só aparece o aviso de que ela será alterada.
+        """
+        Sessao.exigir("usuarios.gerenciar")
+        atual = self.repo.buscar_por_id(usuario.id)
+        if atual is None:
+            raise ErroNegocio("Usuário não encontrado.")
+        mudancas = calcular_alteracoes([
+            ("Nome", atual.nome, usuario.nome),
+            ("Usuário (login)", atual.usuario, usuario.usuario),
+            ("Perfil de acesso", rotulo_perfil(atual.perfil), rotulo_perfil(usuario.perfil)),
+            ("Situação", "Ativo" if atual.ativo else "Inativo",
+             "Ativo" if usuario.ativo else "Inativo"),
+        ])
+        if senha:
+            mudancas.append(Alteracao("Senha", oculto=True))
+        return mudancas
+
+    def salvar(self, usuario, senha=None):
+        """Cria (id vazio) ou atualiza um usuário. Ao editar, senha vazia mantém a atual."""
+        self.validar(usuario, senha)
+        if usuario.id is None:
+            usuario.senha = senha
+            return self.repo.criar(usuario)
         self.repo.atualizar(usuario)
         if senha:
             self.repo.atualizar_senha(usuario.id, senha)

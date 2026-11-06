@@ -10,6 +10,7 @@ from src.utils.validacao import email_valido
 from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
 from ui.componentes.campos import CampoTexto
 from ui.componentes.cartao import Cartao
+from ui.componentes.janela_confirmacao import confirmar_alteracoes
 from ui.componentes.tabela import Tabela
 from ui.estilos import COR_BORDA_CAMPO, COR_TEXTO, COR_TEXTO_SUAVE, fonte
 from ui.telas.tela_base import TelaBase
@@ -99,6 +100,20 @@ class TelaHospedes(TelaBase):
         editando = self.editando is not None
         hospede = Hospede(id=self.editando, nome=self.nome.valor(), cpf=self.cpf.valor(),
                           telefone=self.telefone.valor(), email=self.email.valor())
+        try:
+            self.servicos.hospedes.validar(hospede)
+            mudancas = self.servicos.hospedes.diferencas(hospede) if editando else []
+        except ErroNegocio as erro:
+            messagebox.showerror("Não foi possível salvar", str(erro))
+            return
+        if editando:
+            if not mudancas:
+                messagebox.showinfo("Nada para salvar", "Nenhuma informação foi alterada.")
+                return
+            if not confirmar_alteracoes(
+                    self, "Confirmar alteração do hóspede",
+                    f"Revise o que será modificado no cadastro de {hospede.nome}:", mudancas):
+                return
         try:
             self.servicos.hospedes.salvar(hospede)
         except ErroNegocio as erro:
