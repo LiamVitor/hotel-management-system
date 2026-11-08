@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
     ativo    INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1))
 );
 
+-- Cada linha é um lançamento financeiro de uma reserva: um pagamento do hóspede ou um
+-- reembolso (devolução) a ele. Uma reserva pode ter vários. O histórico é preservado:
+-- os gatilhos abaixo impedem alterar ou excluir qualquer lançamento.
 CREATE TABLE IF NOT EXISTS pagamentos (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     reserva_id  INTEGER NOT NULL REFERENCES reservas(id) ON DELETE RESTRICT,
@@ -49,6 +52,21 @@ CREATE TABLE IF NOT EXISTS pagamentos (
     tipo        TEXT NOT NULL DEFAULT 'Pagamento'
                 CHECK (tipo IN ('Pagamento', 'Reembolso')),
     usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT
+    motivo               TEXT,                           -- obrigatório nos reembolsos
+    pagamento_origem_id  INTEGER REFERENCES pagamentos(id) ON DELETE RESTRICT
+                                                         -- reembolso: pagamento devolvido (opcional)
 );
 
 CREATE INDEX IF NOT EXISTS idx_pagamentos_reserva ON pagamentos (reserva_id);
+
+CREATE TRIGGER IF NOT EXISTS trg_pagamentos_nao_excluir
+BEFORE DELETE ON pagamentos
+BEGIN
+    SELECT RAISE(ABORT, 'Lançamentos financeiros não podem ser excluídos.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_pagamentos_nao_alterar
+BEFORE UPDATE ON pagamentos
+BEGIN
+    SELECT RAISE(ABORT, 'Lançamentos financeiros não podem ser alterados.');
+END;

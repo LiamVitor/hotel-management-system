@@ -14,3 +14,5 @@ class Pagamento:
     data_hora: datetime        # quando foi lançado
     tipo: str = PAGAMENTO_NORMAL   # Pagamento | Reembolso
     id: Optional[int] = None
+    motivo: Optional[str] = None               # obrigatório nos reembolsos
+    pagamento_origem_id: Optional[int] = None  # reembolso: qual pagamento está sendo devolvido

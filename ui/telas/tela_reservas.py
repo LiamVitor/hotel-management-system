@@ -11,6 +11,7 @@ from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoTexto, reformatar_entrada
 from ui.componentes.cartao import Cartao
 from ui.componentes.janela_pagamentos import abrir_pagamentos as abrir_janela_pagamentos
+from ui.componentes.janela_reembolso import abrir_reembolso
 from ui.componentes.seletor import CampoSeletor, JanelaSelecao
 from ui.componentes.tabela import Tabela
 from ui.estilos import (AZUL, COR_BORDA_CAMPO, COR_SELECAO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE,
@@ -386,3 +387,13 @@ class TelaReservas(TelaBase):
             return
         self.atualizar_tabela()
         self.atualizar_resumo()
+        self._oferecer_reembolso(linha)
+
+    def _oferecer_reembolso(self, linha):
+        """Depois de cancelar uma reserva já paga, oferece registrar a devolução do valor."""
+        pago = self.servicos.pagamentos.resumo(linha["id"]).total_pago
+        if pago <= 0 or not Sessao.pode("pagamentos.reembolsar"):
+            return
+        if messagebox.askyesno("Reembolso", f"Esta reserva tinha {formatar_moeda(pago)} pagos.\n\n"
+                                            "Deseja registrar o reembolso agora?"):
+            abrir_reembolso(self, self.servicos, linha["id"], ao_atualizar=self.atualizar_tabela)

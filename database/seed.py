@@ -57,7 +57,7 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
 ]
 
 PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta), forma, dias a partir de hoje, hora
-    (0, 0.3, "PIX", 0, "10:15"),                 # sinal de uma reserva confirmada
+    (0, 0.3, "PIX", -1, "10:15"),                # sinal de uma reserva confirmada
     (1, 0.5, "PIX", -2, "14:05"),                # hospedado, pagou metade
     (3, 1.0, "Dinheiro", -1, "15:40"),           # hospedado, quitado
     (4, 0.2, "Cartão de crédito", -1, "11:20"),  # sinal
@@ -68,6 +68,11 @@ PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta),
     (9, 1.0, "PIX", -4, "12:10"),
     (10, 0.6, "Transferência", -6, "10:00"),     # finalizada paga em duas vezes
     (10, None, "PIX", -3, "11:00"),
+    (7, 0.5, "PIX", -3, "16:00"),                # sinal da reserva que depois foi cancelada
+]
+
+REEMBOLSOS = [  # posição em RESERVAS, posição em PAGAMENTOS (ou None), valor, forma, dias, hora, motivo
+    (7, 11, 100.0, "PIX", -2, "10:30", "Cancelamento da reserva (devolução parcial do sinal)"),
 ]
 
 
@@ -107,17 +112,28 @@ def popular():
     # pagamentos de exemplo, lançados pelo administrador e pela recepção
     lancadores = [repo_u.buscar_por_usuario("admin"), repo_u.buscar_por_usuario("recepcao")]
     pago = {}
+    criados = []                       # na ordem de PAGAMENTOS, usada pelos reembolsos
     for pos, fracao, forma, dias, hora in PAGAMENTOS:
         reserva = reservas[pos]
         valor = (round(reserva.valor_total * fracao, 2) if fracao is not None
                  else round(reserva.valor_total - pago.get(pos, 0.0), 2))
         pago[pos] = round(pago.get(pos, 0.0) + valor, 2)
-        repo_p.criar(Pagamento(
+        criados.append(repo_p.criar(Pagamento(
             reserva_id=reserva.id, valor=valor, forma=forma,
             usuario_id=lancadores[pos % 2].id,
+            data_hora=datetime.combine(hoje + timedelta(days=dias), time.fromisoformat(hora)))))
+
+    # reembolsos de exemplo, lançados pela gerência; o pagamento original continua no histórico
+    gerente = repo_u.buscar_por_usuario("gerente")
+    for pos, pos_pagamento, valor, forma, dias, hora, motivo in REEMBOLSOS:
+        origem = criados[pos_pagamento] if pos_pagamento is not None else None
+        repo_p.criar(Pagamento(
+            reserva_id=reservas[pos].id, valor=valor, forma=forma, tipo="Reembolso", motivo=motivo,
+            pagamento_origem_id=origem.id if origem else None, usuario_id=gerente.id,
             data_hora=datetime.combine(hoje + timedelta(days=dias), time.fromisoformat(hora))))
     print(f"Banco populado: {len(hospedes)} hóspedes, {len(quartos)} quartos, "
-          f"{len(RESERVAS)} reservas, {len(PAGAMENTOS)} pagamentos e {len(USUARIOS)} usuários.")
+          f"{len(RESERVAS)} reservas, {len(PAGAMENTOS)} pagamentos, {len(REEMBOLSOS)} reembolso(s) "
+          f"e {len(USUARIOS)} usuários.")
 
 
 if __name__ == "__main__":

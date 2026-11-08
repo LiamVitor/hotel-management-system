@@ -19,6 +19,10 @@ FORMAS_PAGAMENTO = ["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débit
 PAGAMENTO_NORMAL = "Pagamento"
 PAGAMENTO_REEMBOLSO = "Reembolso"
 
-PAGTO_PENDENTE = "Pendente"
-PAGTO_PARCIAL = "Parcial"
-PAGTO_PAGO = "Pago"    
+PAGTO_PENDENTE = "Pendente"    # nada pago
+PAGTO_PARCIAL = "Parcial"      # pagou parte, ainda deve
+PAGTO_PAGO = "Pago"            # quitada
+PAGTO_CANCELADA = "Cancelada"  # reserva cancelada: não há saldo a cobrar
+
+MOTIVO_REEMBOLSO_MIN = 3
+MOTIVO_REEMBOLSO_MAX = 200

@@ -37,19 +37,50 @@ class Servicos:
                 "total": formatar_moeda(r.valor_total),
                 "pago": formatar_moeda(pago),
                 "saldo": formatar_moeda(saldo_pendente(r.valor_total, pago)),
-                "pagamento": "—" if cancelada else situacao_pagamento(r.valor_total, pago),
+                "pagamento": (("A reembolsar" if pago > 0 else "—") if cancelada
+                              else situacao_pagamento(r.valor_total, pago)),
                 "situacao": r.situacao,
             })
         return linhas
 
     def linhas_pagamentos(self, historico):
-        """Converte [(Pagamento, nome de quem lançou)] em dicionários para a tabela."""
-        return [{
-            "id": p.id,
-            "data_hora": p.data_hora.strftime("%d/%m/%Y %H:%M"),
-            "valor": (("- " if p.tipo == PAGAMENTO_REEMBOLSO else "")
-                      + formatar_moeda(p.valor)),
-            "forma": p.forma,
-            "tipo": p.tipo,
-            "responsavel": nome or "—",
-        } for p, nome in historico]
+        """Converte [(Pagamento, nome de quem lançou)] em dicionários para a tabela.
+
+        Cada linha traz "detalhe" (curto, para a coluna) e "descricao" (completa, mostrada
+        ao selecionar a linha). Pagamentos já reembolsados continuam na lista, com a marcação.
+        """
+        por_id = {p.id: p for p, _ in historico}
+        devolvido = {}
+        for p, _ in historico:
+            if p.tipo == PAGAMENTO_REEMBOLSO and p.pagamento_origem_id:
+                devolvido[p.pagamento_origem_id] = round(
+                    devolvido.get(p.pagamento_origem_id, 0.0) + p.valor, 2)
+
+        linhas = []
+        for p, nome in historico:
+            quando = p.data_hora.strftime("%d/%m/%Y %H:%M")
+            quem = nome or "—"
+            if p.tipo == PAGAMENTO_REEMBOLSO:
+                origem = por_id.get(p.pagamento_origem_id)
+                referencia = (
+                    f"Referente ao pagamento de {origem.data_hora:%d/%m/%Y %H:%M} "
+                    f"({origem.forma}, {formatar_moeda(origem.valor)})."
+                    if origem else "Vinculado à reserva, sem um pagamento específico.")
+                detalhe = p.motivo or ""
+                descricao = (f"Reembolso de {formatar_moeda(p.valor)} em {p.forma}, lançado por "
+                             f"{quem} em {quando}. Motivo: {p.motivo or '—'}. {referencia}")
+                valor = "- " + formatar_moeda(p.valor)
+            else:
+                voltou = devolvido.get(p.id, 0.0)
+                detalhe = f"Reembolsado: {formatar_moeda(voltou)}" if voltou else ""
+                descricao = (f"Pagamento de {formatar_moeda(p.valor)} em {p.forma}, lançado por "
+                             f"{quem} em {quando}.")
+                if voltou:
+                    descricao += (f" Já reembolsado: {formatar_moeda(voltou)} "
+                                  f"(restam {formatar_moeda(p.valor - voltou)}).")
+                valor = formatar_moeda(p.valor)
+            linhas.append({
+                "id": p.id, "data_hora": quando, "valor": valor, "forma": p.forma,
+                "tipo": p.tipo, "responsavel": quem, "detalhe": detalhe, "descricao": descricao,
+            })
+        return linhas

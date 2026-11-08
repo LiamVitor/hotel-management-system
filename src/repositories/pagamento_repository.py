@@ -22,6 +22,8 @@ class PagamentoRepository:
             tipo=linha["tipo"],
             usuario_id=linha["usuario_id"],
             data_hora=datetime.fromisoformat(linha["data_hora"]),
+            motivo=linha["motivo"],
+            pagamento_origem_id=linha["pagamento_origem_id"],
         )
 
     def _para_objetos(self, linhas):
@@ -29,8 +31,9 @@ class PagamentoRepository:
 
     def criar(self, pagamento, conexao=None):
         pagamento.id = inserir(
-            """INSERT INTO pagamentos (reserva_id, data_hora, valor, forma, tipo, usuario_id)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO pagamentos (reserva_id, data_hora, valor, forma, tipo, usuario_id,
+                                       motivo, pagamento_origem_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 pagamento.reserva_id,
                 pagamento.data_hora.isoformat(sep=" ", timespec="seconds"),
@@ -38,6 +41,8 @@ class PagamentoRepository:
                 pagamento.forma,
                 pagamento.tipo,
                 pagamento.usuario_id,
+                pagamento.motivo,
+                pagamento.pagamento_origem_id,
             ),
             conexao=conexao,
         )

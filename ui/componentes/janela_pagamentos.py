@@ -1,37 +1,41 @@
-"""Janela de pagamentos de uma reserva: resumo, lançamento de novo pagamento e histórico."""
+"""Janela financeira de uma reserva: resumo, novo pagamento, reembolsos e histórico."""
 from tkinter import messagebox
 
 import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
-from src.utils.constantes import (FORMAS_PAGAMENTO, PAGTO_PAGO, PAGTO_PARCIAL, PAGTO_PENDENTE,
-                                  RESERVA_CANCELADA)
+from src.utils.constantes import (FORMAS_PAGAMENTO, PAGTO_CANCELADA, PAGTO_PAGO, PAGTO_PARCIAL,
+                                  PAGTO_PENDENTE, RESERVA_CANCELADA)
 from src.utils.formatacao import formatar_data, formatar_moeda, ler_valor
 from src.utils.sessao import Sessao
 from ui.componentes.botoes import botao_primario, botao_secundario
 from ui.componentes.campos import CampoSelecao, CampoTexto, somente_numero
 from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.janela_reembolso import abrir_reembolso
 from ui.componentes.tabela import Tabela
 from ui.estilos import COR_FUNDO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE, VERMELHO, fonte
 
-COLUNAS = [("Data e hora", "data_hora", 135), ("Valor", "valor", 110), ("Forma", "forma", 150),
-           ("Tipo", "tipo", 100), ("Responsável", "responsavel", 170)]
+COLUNAS = [("Data e hora", "data_hora", 125), ("Valor", "valor", 100), ("Forma", "forma", 125),
+           ("Tipo", "tipo", 90), ("Responsável", "responsavel", 130), ("Detalhe", "detalhe", 215)]
 
-COR_SITUACAO = {PAGTO_PENDENTE: VERMELHO, PAGTO_PARCIAL: "#D97706", PAGTO_PAGO: VERDE}
+COR_SITUACAO = {PAGTO_PENDENTE: VERMELHO, PAGTO_PARCIAL: "#D97706", PAGTO_PAGO: VERDE,
+                PAGTO_CANCELADA: "#6B7280"}
+COR_REEMBOLSO = "#D97706"
+DICA_DETALHE = "Clique em um lançamento para ver os detalhes."
 
 
 def abrir_pagamentos(master, servicos, reserva_id, ao_atualizar=None):
     """Abre a janela e espera ela ser fechada.
 
-    ao_atualizar: funcao() chamada a cada pagamento registrado, para a tela de trás
-    recarregar a tabela.
+    ao_atualizar: funcao() chamada a cada pagamento ou reembolso registrado, para a tela
+    de trás recarregar a tabela.
     """
     janela = JanelaPagamentos(master, servicos, reserva_id, ao_atualizar)
     master.wait_window(janela)
 
 
 class JanelaPagamentos(ctk.CTkToplevel):
-    LARGURA, ALTURA = 820, 740
+    LARGURA, ALTURA = 980, 790
 
     def __init__(self, master, servicos, reserva_id, ao_atualizar=None):
         super().__init__(master, fg_color=COR_FUNDO)
@@ -58,9 +62,10 @@ class JanelaPagamentos(ctk.CTkToplevel):
     # ---------- montagem ----------
     def _centralizar(self, master):
         topo = master.winfo_toplevel()
+        altura = min(self.ALTURA, topo.winfo_screenheight() - 100)   # cabe em telas pequenas
         x = topo.winfo_rootx() + max((topo.winfo_width() - self.LARGURA) // 2, 0)
-        y = topo.winfo_rooty() + max((topo.winfo_height() - self.ALTURA) // 2, 0)
-        self.geometry(f"{self.LARGURA}x{self.ALTURA}+{x}+{y}")
+        y = topo.winfo_rooty() + max((topo.winfo_height() - altura) // 2, 0)
+        self.geometry(f"{self.LARGURA}x{altura}+{x}+{y}")
 
     def _montar_cabecalho(self):
         hospede = self.servicos.hospedes.buscar_por_id(self.reserva.hospede_id)
@@ -83,13 +88,15 @@ class JanelaPagamentos(ctk.CTkToplevel):
     def _montar_resumo(self):
         linha = ctk.CTkFrame(self, fg_color="transparent")
         linha.pack(fill="x", padx=24)
-        linha.grid_columnconfigure((0, 1, 2), weight=1, uniform="resumo")
+        linha.grid_columnconfigure((0, 1, 2, 3), weight=1, uniform="resumo")
         self.cartao_total = CartaoResumo(linha, "Total da reserva", "—")
-        self.cartao_pago = CartaoResumo(linha, "Já pago", "—", VERDE)
+        self.cartao_pago = CartaoResumo(linha, "Pago (líquido)", "—", VERDE)
+        self.cartao_reembolsado = CartaoResumo(linha, "Reembolsado", "—", COR_REEMBOLSO)
         self.cartao_saldo = CartaoResumo(linha, "Saldo pendente", "—")
-        for coluna, cartao in enumerate((self.cartao_total, self.cartao_pago, self.cartao_saldo)):
+        cartoes = (self.cartao_total, self.cartao_pago, self.cartao_reembolsado, self.cartao_saldo)
+        for coluna, cartao in enumerate(cartoes):
             cartao.grid(row=0, column=coluna, sticky="ew",
-                        padx=(0 if coluna == 0 else 6, 0 if coluna == 2 else 6))
+                        padx=(0 if coluna == 0 else 5, 0 if coluna == 3 else 5))
 
     def _montar_formulario(self):
         self.form = Cartao(self, "Registrar pagamento")
@@ -111,19 +118,26 @@ class JanelaPagamentos(ctk.CTkToplevel):
         self.lbl_form = ctk.CTkLabel(self.form, text="", font=fonte(12, True),
                                      text_color=COR_TEXTO_SUAVE, anchor="w", justify="left",
                                      wraplength=self.LARGURA - 100)
-        self.lbl_form.pack(anchor="w", padx=20, pady=(8, 16))
+        self.lbl_form.pack(anchor="w", padx=20, pady=(8, 14))
 
     def _montar_historico(self):
         rodape = ctk.CTkFrame(self, fg_color="transparent")
         rodape.pack(side="bottom", fill="x", padx=24, pady=(8, 20))
         botao_secundario(rodape, "Fechar", self.destroy, 120).pack(side="right")
+        self.btn_reembolso = botao_secundario(rodape, "Registrar reembolso...",
+                                              self._abrir_reembolso, 190)
+        if Sessao.pode("pagamentos.reembolsar"):
+            self.btn_reembolso.pack(side="left")
 
-        historico = Cartao(self, "Histórico de pagamentos")
+        historico = Cartao(self, "Histórico financeiro da reserva")
         historico.pack(fill="both", expand=True, padx=24, pady=(14, 0))
-        self.tabela = Tabela(historico, COLUNAS, altura=150)
+        # o texto de detalhe é empacotado antes, embaixo, para nunca ser espremido pela tabela
+        self.lbl_detalhe = ctk.CTkLabel(historico, text=DICA_DETALHE, font=fonte(12),
+                                        text_color=COR_TEXTO_SUAVE, anchor="w", justify="left",
+                                        wraplength=self.LARGURA - 100)
+        self.lbl_detalhe.pack(side="bottom", anchor="w", padx=20, pady=(0, 12))
+        self.tabela = Tabela(historico, COLUNAS, altura=90, ao_selecionar=self._mostrar_detalhe)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 6))
-        self.lbl_vazio = ctk.CTkLabel(historico, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
-        self.lbl_vazio.pack(anchor="w", padx=20, pady=(0, 12))
 
     # ---------- estado ----------
     def _motivo_bloqueio(self, resumo):
@@ -148,19 +162,24 @@ class JanelaPagamentos(ctk.CTkToplevel):
 
         self.cartao_total.atualizar(formatar_moeda(resumo.valor_total))
         self.cartao_pago.atualizar(formatar_moeda(resumo.total_pago))
+        self.cartao_reembolsado.atualizar(formatar_moeda(resumo.total_reembolsado))
         self.cartao_saldo.atualizar(formatar_moeda(resumo.saldo))
         self.cartao_saldo._valor.configure(text_color=VERMELHO if resumo.saldo > 0 else VERDE)
         self.selo.configure(text=resumo.situacao, fg_color=COR_SITUACAO[resumo.situacao])
 
         historico = self.servicos.pagamentos.historico(self.reserva_id)
         self.tabela.carregar(self.servicos.linhas_pagamentos(historico)[::-1])   # mais recente primeiro
-        self.lbl_vazio.configure(text="" if historico else "Nenhum pagamento registrado ainda.")
+        self.lbl_detalhe.configure(text=DICA_DETALHE if historico else "Nenhum lançamento ainda.")
+        self.btn_reembolso.configure(state="normal" if resumo.total_pago > 0 else "disabled")
 
         motivo = self._motivo_bloqueio(resumo)
         self._habilitar_formulario(motivo is None)
         texto = mensagem or motivo or ""
         cor = VERMELHO if erro else (VERDE if mensagem else COR_TEXTO_SUAVE)
         self.lbl_form.configure(text=texto, text_color=cor)
+
+    def _mostrar_detalhe(self, linha):
+        self.lbl_detalhe.configure(text=linha["descricao"])
 
     # ---------- ações ----------
     def _preencher_saldo(self):
@@ -196,6 +215,20 @@ class JanelaPagamentos(ctk.CTkToplevel):
         if self.servicos.pagamentos.resumo(self.reserva_id).saldo <= 0:
             mensagem += " Reserva quitada."
         self._atualizar(mensagem)
+        if self._ao_atualizar:
+            self._ao_atualizar()
+
+    def _abrir_reembolso(self):
+        """Abre o reembolso já apontando para o pagamento selecionado na tabela, se houver."""
+        linha = self.tabela.selecionado()
+        origem_id = linha["id"] if linha and linha["tipo"] == "Pagamento" else None
+        abrir_reembolso(self, self.servicos, self.reserva_id, origem_id,
+                        ao_atualizar=self._apos_reembolso)
+        if self.winfo_exists():
+            self.grab_set()                 # a janela de reembolso soltou o bloqueio ao fechar
+
+    def _apos_reembolso(self):
+        self._atualizar("Reembolso registrado.")
         if self._ao_atualizar:
             self._ao_atualizar()
 
