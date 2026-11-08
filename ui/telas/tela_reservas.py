@@ -10,6 +10,7 @@ from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoTexto, reformatar_entrada
 from ui.componentes.cartao import Cartao
+from ui.componentes.janela_pagamentos import abrir_pagamentos as abrir_janela_pagamentos
 from ui.componentes.seletor import CampoSeletor, JanelaSelecao
 from ui.componentes.tabela import Tabela
 from ui.estilos import (AZUL, COR_BORDA_CAMPO, COR_SELECAO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE,
@@ -21,9 +22,9 @@ from src.utils.sessao import Sessao
 from src.utils.formatacao import (formatar_cpf, formatar_data, formatar_moeda,
                                   formatar_telefone, ler_data, mascara_data)
 
-COLUNAS = [("Código", "codigo", 70), ("Hóspede", "hospede", 210), ("Quarto", "quarto", 70),
-           ("Entrada", "entrada", 100), ("Saída", "saida", 100), ("Total", "total", 120),
-           ("Status", "situacao", 110)]
+COLUNAS = [("Código", "codigo", 66), ("Hóspede", "hospede", 190), ("Quarto", "quarto", 62),
+           ("Entrada", "entrada", 95), ("Saída", "saida", 95), ("Total", "total", 110),
+           ("Status", "situacao", 100), ("Pagamento", "pagamento", 95)]
 
 COLUNAS_SELECAO_HOSPEDE = [("Nome", "nome", 230), ("CPF", "cpf", 130),
                            ("Telefone", "telefone", 140), ("E-mail", "email", 200)]
@@ -110,10 +111,12 @@ class TelaReservas(TelaBase):
         if Sessao.pode("reservas.cancelar"):
             botao_perigo(acoes, "Cancelar reserva selecionada", self.cancelar, 240
                          ).pack(side="left")
+        botao_secundario(acoes, "Pagamentos da reserva selecionada", self.abrir_pagamentos, 270
+                         ).pack(side="left", padx=(10, 0))
         self.lbl_filtro = ctk.CTkLabel(acoes, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
         self.lbl_filtro.pack(side="left", padx=14)
 
-        self.tabela = Tabela(lista, COLUNAS, altura=110)
+        self.tabela = Tabela(lista, COLUNAS, altura=110, ao_duplo_clique=self.abrir_pagamentos)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
     def _montar_filtros(self, lista):
@@ -356,6 +359,13 @@ class TelaReservas(TelaBase):
                             f"Reserva criada. Total: {formatar_moeda(reserva.valor_total)}")
         self.limpar()
         self.atualizar_tabela()
+
+    def abrir_pagamentos(self, _linha=None):
+        linha = self.tabela.selecionado()
+        if linha is None:
+            messagebox.showinfo("Pagamentos", "Selecione uma reserva na tabela.")
+            return
+        abrir_janela_pagamentos(self, self.servicos, linha["id"], self.atualizar_tabela)
 
     def cancelar(self):
         linha = self.tabela.selecionado()

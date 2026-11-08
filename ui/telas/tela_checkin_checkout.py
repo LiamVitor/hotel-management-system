@@ -3,16 +3,18 @@ from tkinter import messagebox
 
 from src.services.erros import ErroNegocio
 from ui.componentes.cartao import Cartao
+from ui.componentes.janela_pagamentos import abrir_pagamentos
 from ui.componentes.tabela import Tabela
 from ui.telas.tela_base import TelaBase
 from src.utils.constantes import RESERVA_CONFIRMADA, RESERVA_HOSPEDADA
 from src.utils.formatacao import formatar_moeda
+from src.utils.sessao import Sessao
 
 COLUNAS_CHECKIN = [("Hóspede", "hospede", 230), ("Quarto", "quarto", 80),
                    ("Entrada", "entrada", 110), ("Saída", "saida", 110), ("Status", "situacao", 110)]
 COLUNAS_CHECKOUT = [("Hóspede", "hospede", 230), ("Quarto", "quarto", 80),
                     ("Entrada", "entrada", 110), ("Saída", "saida", 110),
-                    ("Total a pagar", "total", 120)]
+                    ("Saldo a pagar", "saldo", 120)]
 
 
 class TelaCheckinCheckout(TelaBase):
@@ -60,8 +62,23 @@ class TelaCheckinCheckout(TelaBase):
         reserva = self.servicos.reservas.buscar_por_id(linha["id"])
         if reserva is None:
             return
+        resumo = self.servicos.pagamentos.resumo(reserva.id)
+        if resumo.saldo > 0 and Sessao.pode("pagamentos.registrar"):
+            resposta = messagebox.askyesnocancel(
+                "Saldo pendente",
+                f"{linha['hospede']} ainda tem {formatar_moeda(resumo.saldo)} a pagar.\n\n"
+                "Sim: registrar o pagamento agora\n"
+                "Não: fazer o check-out com o saldo pendente\n"
+                "Cancelar: voltar")
+            if resposta is None:
+                return
+            if resposta:
+                abrir_pagamentos(self, self.servicos, reserva.id, self.atualizar_tabelas)
+                resumo = self.servicos.pagamentos.resumo(reserva.id)
         pergunta = (f"Fazer check-out de {linha['hospede']}?\n"
-                    f"Total a pagar: {formatar_moeda(reserva.valor_total)}")
+                    f"Total: {formatar_moeda(resumo.valor_total)}    "
+                    f"Pago: {formatar_moeda(resumo.total_pago)}\n"
+                    f"Saldo pendente: {formatar_moeda(resumo.saldo)}")
         if not messagebox.askyesno("Check-out", pergunta):
             return
         try:

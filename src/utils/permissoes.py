@@ -20,6 +20,7 @@ _RECEPCAO = frozenset({
     "hospedes.ver", "hospedes.salvar",
     "quartos.ver",
     "reservas.ver", "reservas.criar", "reservas.checkin",
+    "pagamentos.registrar",
 })
 _GERENCIA = _RECEPCAO | {
     "hospedes.excluir",

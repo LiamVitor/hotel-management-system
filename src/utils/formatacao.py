@@ -8,6 +8,26 @@ def formatar_moeda(valor):
     return "R$ " + texto.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def ler_valor(texto):
+    """Converte um valor digitado em reais ('150', '150,5', '1.500,00', 'R$ 80') em float.
+
+    A vírgula é o separador decimal e o ponto, o de milhar ('1.500' = 1500). Um único
+    ponto seguido de 1 ou 2 dígitos ('180.50') também é aceito como decimal.
+    Levanta ValueError se não for um número.
+    """
+    limpo = re.sub(r"[R$\s]", "", texto or "")
+    if not re.fullmatch(r"[\d.,]+", limpo):
+        raise ValueError("Informe um valor válido, como 150,00.")
+    if "," in limpo:
+        limpo = limpo.replace(".", "").replace(",", ".")
+    elif limpo.count(".") > 1 or re.fullmatch(r"\d{1,3}(\.\d{3})+", limpo):
+        limpo = limpo.replace(".", "")
+    try:
+        return round(float(limpo), 2)
+    except ValueError:
+        raise ValueError("Informe um valor válido, como 150,00.")
+
+
 def formatar_percentual(valor):
     return f"{valor:.1f}%".replace(".", ",")
 

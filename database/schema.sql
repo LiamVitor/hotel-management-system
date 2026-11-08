@@ -39,3 +39,16 @@ CREATE TABLE IF NOT EXISTS usuarios (
              CHECK (perfil IN ('admin', 'gerente', 'recepcionista')),
     ativo    INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1))
 );
+
+CREATE TABLE IF NOT EXISTS pagamentos (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    reserva_id  INTEGER NOT NULL REFERENCES reservas(id) ON DELETE RESTRICT,
+    data_hora   TEXT NOT NULL,                    -- 'AAAA-MM-DD HH:MM:SS'
+    valor       REAL NOT NULL CHECK (valor > 0),
+    forma       TEXT NOT NULL,                    -- PIX, Dinheiro, Cartão de crédito...
+    tipo        TEXT NOT NULL DEFAULT 'Pagamento'
+                CHECK (tipo IN ('Pagamento', 'Reembolso')),
+    usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pagamentos_reserva ON pagamentos (reserva_id);

@@ -2,16 +2,18 @@
 
 Uso, na raiz do projeto:  python -m database.seed
 """
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from database.conexao import inicializar_banco
 from src.models.usuario import Usuario
 from src.models.hospede import Hospede
 from src.models.quarto import Quarto
+from src.models.pagamento import Pagamento
 from src.models.reserva import Reserva
 from src.repositories.usuario_repository import UsuarioRepository
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.quarto_repository import QuartoRepository
+from src.repositories.pagamento_repository import PagamentoRepository
 from src.repositories.reserva_repository import ReservaRepository
 
 USUARIOS = [  # nome, usuário, senha, perfil
@@ -54,10 +56,25 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
     (4, "202", -6, -3, "Finalizada"),
 ]
 
+PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta), forma, dias a partir de hoje, hora
+    (0, 0.3, "PIX", 0, "10:15"),                 # sinal de uma reserva confirmada
+    (1, 0.5, "PIX", -2, "14:05"),                # hospedado, pagou metade
+    (3, 1.0, "Dinheiro", -1, "15:40"),           # hospedado, quitado
+    (4, 0.2, "Cartão de crédito", -1, "11:20"),  # sinal
+    (5, 0.5, "PIX", -5, "13:00"),                # finalizada paga em duas vezes
+    (5, None, "Cartão de débito", -2, "11:30"),
+    (6, 1.0, "Dinheiro", -10, "16:20"),
+    (8, 1.0, "Cartão de crédito", -12, "09:45"),
+    (9, 1.0, "PIX", -4, "12:10"),
+    (10, 0.6, "Transferência", -6, "10:00"),     # finalizada paga em duas vezes
+    (10, None, "PIX", -3, "11:00"),
+]
+
 
 def popular():
     inicializar_banco()
     repo_h, repo_q, repo_r, repo_u = HospedeRepository(), QuartoRepository(), ReservaRepository(), UsuarioRepository()
+    repo_p = PagamentoRepository()
 
     # usuários de exemplo: cria só os que ainda não existem (não duplica nem apaga nada)
     for nome, usuario, senha, perfil in USUARIOS:
@@ -76,17 +93,31 @@ def popular():
                for numero, tipo, cap, preco, situacao in QUARTOS}
 
     hoje = date.today()
+    reservas = []
     for pos, numero, ini, fim, situacao in RESERVAS:
         quarto = quartos[numero]
         entrada, saida = hoje + timedelta(days=ini), hoje + timedelta(days=fim)
-        repo_r.criar(Reserva(
+        reservas.append(repo_r.criar(Reserva(
             hospede_id=hospedes[pos].id, quarto_id=quarto.id,
             data_entrada=entrada, data_saida=saida,
             valor_diaria=quarto.preco_diaria,
             valor_total=(saida - entrada).days * quarto.preco_diaria,
-            situacao=situacao))
+            situacao=situacao)))
+
+    # pagamentos de exemplo, lançados pelo administrador e pela recepção
+    lancadores = [repo_u.buscar_por_usuario("admin"), repo_u.buscar_por_usuario("recepcao")]
+    pago = {}
+    for pos, fracao, forma, dias, hora in PAGAMENTOS:
+        reserva = reservas[pos]
+        valor = (round(reserva.valor_total * fracao, 2) if fracao is not None
+                 else round(reserva.valor_total - pago.get(pos, 0.0), 2))
+        pago[pos] = round(pago.get(pos, 0.0) + valor, 2)
+        repo_p.criar(Pagamento(
+            reserva_id=reserva.id, valor=valor, forma=forma,
+            usuario_id=lancadores[pos % 2].id,
+            data_hora=datetime.combine(hoje + timedelta(days=dias), time.fromisoformat(hora))))
     print(f"Banco populado: {len(hospedes)} hóspedes, {len(quartos)} quartos, "
-          f"{len(RESERVAS)} reservas e {len(USUARIOS)} usuários.")
+          f"{len(RESERVAS)} reservas, {len(PAGAMENTOS)} pagamentos e {len(USUARIOS)} usuários.")
 
 
 if __name__ == "__main__":
