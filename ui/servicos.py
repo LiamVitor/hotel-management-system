@@ -1,5 +1,6 @@
 """Reúne os services usados pelas telas e prepara linhas para as tabelas."""
 from src.models.pagamento import Pagamento
+from src.services.despesa_service import DespesaService
 from src.services.hospede_service import HospedeService
 from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
 from src.services.pagamento_service import PagamentoService
@@ -16,6 +17,7 @@ class Servicos:
         self.quartos = QuartoService()
         self.reservas = ReservaService()
         self.pagamentos = PagamentoService()
+        self.despesas = DespesaService()
         self.usuarios = UsuarioService()
 
     def linhas_reservas(self, reservas):
@@ -84,3 +86,16 @@ class Servicos:
                 "tipo": p.tipo, "responsavel": quem, "detalhe": detalhe, "descricao": descricao,
             })
         return linhas
+
+    def linhas_despesas(self, despesas):
+        """Converte despesas em dicionários prontos para a tabela (com nomes em vez de ids)."""
+        categorias = self.despesas.nomes_categorias()
+        responsaveis = self.despesas.nomes_responsaveis(despesas)
+        return [{
+            "id": d.id,
+            "data": formatar_data(d.data),
+            "categoria": categorias.get(d.categoria_id, "—"),
+            "descricao": d.descricao,
+            "valor": formatar_moeda(d.valor),
+            "responsavel": responsaveis.get(d.usuario_id, "—"),
+        } for d in despesas]

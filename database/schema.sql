@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS pagamentos (
     forma       TEXT NOT NULL,                    -- PIX, Dinheiro, Cartão de crédito...
     tipo        TEXT NOT NULL DEFAULT 'Pagamento'
                 CHECK (tipo IN ('Pagamento', 'Reembolso')),
-    usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT
+    usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
     motivo               TEXT,                           -- obrigatório nos reembolsos
     pagamento_origem_id  INTEGER REFERENCES pagamentos(id) ON DELETE RESTRICT
                                                          -- reembolso: pagamento devolvido (opcional)
@@ -70,3 +70,42 @@ BEFORE UPDATE ON pagamentos
 BEGIN
     SELECT RAISE(ABORT, 'Lançamentos financeiros não podem ser alterados.');
 END;
+
+-- Categorias para classificar as despesas (manutenção, alimentação, limpeza, salários...).
+-- Uma categoria nunca é apagada: se não for mais usada, é desativada (ativa = 0), assim
+-- as despesas antigas continuam apontando para ela.
+CREATE TABLE IF NOT EXISTS categorias_despesa (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome   TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    ativa  INTEGER NOT NULL DEFAULT 1 CHECK (ativa IN (0, 1))
+);
+
+-- Categorias iniciais: só entram quando a tabela está vazia, então renomear ou desativar
+-- uma delas não faz a original voltar na próxima abertura do sistema.
+INSERT INTO categorias_despesa (nome)
+SELECT column1 FROM (VALUES
+    ('Manutenção'), ('Alimentação'), ('Limpeza'), ('Salários'), ('Energia elétrica'),
+    ('Água e esgoto'), ('Internet e telefone'), ('Impostos e taxas'), ('Lavanderia'),
+    ('Marketing'), ('Outros')
+)
+WHERE NOT EXISTS (SELECT 1 FROM categorias_despesa);
+
+-- Despesas da pousada. "data" é o dia da despesa; "criada_em" é quando foi lançada no
+-- sistema e "usuario_id" quem lançou. Excluir é só marcar (excluida_em): a linha continua
+-- no banco para auditoria, mas some das consultas e dos totais.
+CREATE TABLE IF NOT EXISTS despesas (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    data           TEXT NOT NULL,                  -- 'AAAA-MM-DD'
+    descricao      TEXT NOT NULL,
+    valor          REAL NOT NULL CHECK (valor > 0),
+    categoria_id   INTEGER NOT NULL REFERENCES categorias_despesa(id) ON DELETE RESTRICT,
+    usuario_id     INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    criada_em      TEXT NOT NULL,                  -- 'AAAA-MM-DD HH:MM:SS'
+    atualizada_em  TEXT,
+    atualizada_por INTEGER REFERENCES usuarios(id) ON DELETE RESTRICT,
+    excluida_em    TEXT,
+    excluida_por   INTEGER REFERENCES usuarios(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_despesas_data ON despesas (data);
+CREATE INDEX IF NOT EXISTS idx_despesas_categoria ON despesas (categoria_id);

@@ -8,11 +8,14 @@ from database.conexao import inicializar_banco
 from src.models.usuario import Usuario
 from src.models.hospede import Hospede
 from src.models.quarto import Quarto
+from src.models.despesa import Despesa
 from src.models.pagamento import Pagamento
 from src.models.reserva import Reserva
 from src.repositories.usuario_repository import UsuarioRepository
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.quarto_repository import QuartoRepository
+from src.repositories.categoria_despesa_repository import CategoriaDespesaRepository
+from src.repositories.despesa_repository import DespesaRepository
 from src.repositories.pagamento_repository import PagamentoRepository
 from src.repositories.reserva_repository import ReservaRepository
 
@@ -75,6 +78,25 @@ REEMBOLSOS = [  # posição em RESERVAS, posição em PAGAMENTOS (ou None), valo
     (7, 11, 100.0, "PIX", -2, "10:30", "Cancelamento da reserva (devolução parcial do sinal)"),
 ]
 
+DESPESAS = [  # dias atrás, categoria, descrição, valor, quem lançou
+    (58, "Salários", "Folha de pagamento — setembro", 4200.00, "gerente"),
+    (55, "Energia elétrica", "Conta de energia — setembro", 1280.40, "admin"),
+    (52, "Água e esgoto", "Conta de água — setembro", 412.75, "admin"),
+    (47, "Impostos e taxas", "Taxa de licença de funcionamento", 350.00, "admin"),
+    (41, "Manutenção", "Conserto do ar-condicionado do quarto 103", 380.00, "gerente"),
+    (33, "Alimentação", "Frutas, pães e frios do café da manhã", 296.90, "gerente"),
+    (28, "Marketing", "Impulsionamento de anúncios", 150.00, "gerente"),
+    (27, "Salários", "Folha de pagamento — outubro", 4200.00, "gerente"),
+    (24, "Energia elétrica", "Conta de energia — outubro", 1195.10, "admin"),
+    (22, "Lavanderia", "Lavagem de enxoval (lençóis e toalhas)", 240.00, "gerente"),
+    (18, "Limpeza", "Produtos de limpeza e descartáveis", 187.35, "gerente"),
+    (12, "Internet e telefone", "Plano de internet fibra", 129.90, "admin"),
+    (9, "Alimentação", "Café, leite e açúcar", 84.50, "gerente"),
+    (6, "Manutenção", "Troca de lâmpadas dos corredores", 96.00, "gerente"),
+    (3, "Limpeza", "Reposição de papel higiênico e sabonete", 112.80, "gerente"),
+    (1, "Outros", "Material de escritório", 58.00, "gerente"),
+]
+
 
 def popular():
     inicializar_banco()
@@ -131,9 +153,19 @@ def popular():
             reserva_id=reservas[pos].id, valor=valor, forma=forma, tipo="Reembolso", motivo=motivo,
             pagamento_origem_id=origem.id if origem else None, usuario_id=gerente.id,
             data_hora=datetime.combine(hoje + timedelta(days=dias), time.fromisoformat(hora))))
+
+    # despesas de exemplo (as categorias já vêm criadas junto com o banco)
+    categorias = {c.nome: c.id for c in CategoriaDespesaRepository().listar()}
+    repo_d = DespesaRepository()
+    for dias, categoria, descricao, valor, quem in DESPESAS:
+        dia = hoje - timedelta(days=dias)
+        repo_d.criar(Despesa(
+            data=dia, descricao=descricao, valor=valor, categoria_id=categorias[categoria],
+            usuario_id=repo_u.buscar_por_usuario(quem).id,
+            criada_em=datetime.combine(dia, time(9, 0))))
     print(f"Banco populado: {len(hospedes)} hóspedes, {len(quartos)} quartos, "
-          f"{len(RESERVAS)} reservas, {len(PAGAMENTOS)} pagamentos, {len(REEMBOLSOS)} reembolso(s) "
-          f"e {len(USUARIOS)} usuários.")
+          f"{len(RESERVAS)} reservas, {len(PAGAMENTOS)} pagamentos, {len(REEMBOLSOS)} reembolso(s), "
+          f"{len(DESPESAS)} despesas e {len(USUARIOS)} usuários.")
 
 
 if __name__ == "__main__":

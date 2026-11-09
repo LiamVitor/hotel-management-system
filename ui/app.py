@@ -7,6 +7,7 @@ from ui.componentes.menu_lateral import MenuLateral, itens_permitidos
 from ui.servicos import Servicos
 from ui.estilos import COR_FUNDO, configurar_tema
 from ui.telas.tela_checkin_checkout import TelaCheckinCheckout
+from ui.telas.tela_despesas import TelaDespesas
 from ui.telas.tela_hospedes import TelaHospedes
 from ui.telas.tela_inicio import TelaInicio
 from ui.telas.tela_quartos import TelaQuartos
@@ -20,6 +21,7 @@ CLASSES_DAS_TELAS = {
     "Quartos": TelaQuartos,
     "Reservas": TelaReservas,
     "Check-in / Check-out": TelaCheckinCheckout,
+    "Despesas": TelaDespesas,
     "Relatórios": TelaRelatorios,
     "Usuários": TelaUsuarios,
 }
