@@ -11,7 +11,8 @@ from src.services.erros import ErroNegocio
 from src.utils.filtros import normalizar_texto, parece_numerico
 from src.utils.formatacao import apenas_digitos
 from src.utils.sessao import Sessao
-from src.utils.constantes import (QUARTO_DISPONIVEL, QUARTO_MANUTENCAO, QUARTO_OCUPADO,
+from src.utils.constantes import (MOTIVO_CANCELAMENTO_MAX, MOTIVO_CANCELAMENTO_MIN,
+                                  QUARTO_DISPONIVEL, QUARTO_MANUTENCAO, QUARTO_OCUPADO,
                                   RESERVA_CONFIRMADA, RESERVA_HOSPEDADA)
 
 
@@ -35,7 +36,7 @@ class ReservaService:
         """Filtra as reservas (mais recentes primeiro). Todos os filtros são opcionais.
 
         termo:   nome ou CPF do hóspede, número do quarto ou código da reserva
-        situacao: Confirmada, Hospedada, Finalizada ou Cancelada
+        situacao: Confirmada, Hospedada, Finalizada, Cancelada ou Não compareceu
         periodo_de / periodo_ate: traz as reservas que ocupam algum dia dentro do período
         """
         if periodo_de and periodo_ate and periodo_ate < periodo_de:
@@ -75,11 +76,14 @@ class ReservaService:
         return bool(self.repo.listar_conflitantes(quarto_id, entrada, saida))
 
     def responsaveis(self, reservas):
-        """{usuario_id: nome} de quem fez o check-in ou o check-out das reservas informadas.
+        """{usuario_id: nome} de quem fez check-in, check-out, cancelamento ou no-show das reservas.
 
         Busca direto no repositório de usuários, pois listar usuários é restrito ao administrador.
         """
-        ids = ({r.checkin_por for r in reservas} | {r.checkout_por for r in reservas}) - {None}
+        ids = set()
+        for r in reservas:
+            ids |= {r.checkin_por, r.checkout_por, r.cancelada_por, r.noshow_por}
+        ids -= {None}
         nomes = {}
         for usuario_id in ids:
             usuario = self.usuario_repo.buscar_por_id(usuario_id)
@@ -120,12 +124,43 @@ class ReservaService:
             return self.repo.criar(reserva, conexao=conexao)
 
     # ---------- mudanças de situação ----------
-    def cancelar(self, reserva_id):
+    def cancelar(self, reserva_id, motivo):
+        """Cancela a reserva, exigindo o motivo.
+
+        Grava o momento (data e hora de agora), o motivo e o usuário logado (Sessao).
+        """
         Sessao.exigir("reservas.cancelar")
+        motivo = (motivo or "").strip()
+        if len(motivo) < MOTIVO_CANCELAMENTO_MIN:
+            raise ErroNegocio("Informe o motivo do cancelamento.")
+        if len(motivo) > MOTIVO_CANCELAMENTO_MAX:
+            raise ErroNegocio(
+                f"O motivo deve ter no máximo {MOTIVO_CANCELAMENTO_MAX} caracteres.")
         reserva = self._obter(reserva_id)
         if not regras.pode_cancelar(reserva):
             raise ErroNegocio("Só é possível cancelar reservas confirmadas, antes do check-in.")
-        self.repo.cancelar(reserva_id)
+        if not self.repo.registrar_cancelamento(reserva_id, _agora(), Sessao.usuario.id, motivo):
+            raise ErroNegocio("A situação da reserva mudou. Atualize a tela e tente de novo.")
+        return self._obter(reserva_id)
+
+    def impedimento_no_show(self, reserva):
+        """Texto com o motivo de a reserva não poder virar no-show, ou None se pode."""
+        return regras.impedimento_no_show(reserva, _agora().date())
+
+    def marcar_no_show(self, reserva_id):
+        """Marca a reserva como 'Não compareceu'.
+
+        Grava o momento (data e hora de agora) e o usuário logado (Sessao). A reserva deixa
+        de bloquear o quarto, que volta a ficar livre para o período.
+        """
+        Sessao.exigir("reservas.noshow")
+        reserva = self._obter(reserva_id)
+        impedimento = self.impedimento_no_show(reserva)
+        if impedimento:
+            raise ErroNegocio(impedimento)
+        if not self.repo.registrar_no_show(reserva_id, _agora(), Sessao.usuario.id):
+            raise ErroNegocio("A situação da reserva mudou. Atualize a tela e tente de novo.")
+        return self._obter(reserva_id)
 
     def fazer_checkin(self, reserva_id):
         """Registra a entrada do hóspede.

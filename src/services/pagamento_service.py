@@ -8,7 +8,8 @@ from src.repositories.usuario_repository import UsuarioRepository
 from src.services import pagamento_regras as regras
 from src.services.erros import ErroNegocio
 from src.utils.constantes import (FORMAS_PAGAMENTO, MOTIVO_REEMBOLSO_MAX, MOTIVO_REEMBOLSO_MIN,
-                                  PAGAMENTO_NORMAL, PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA)
+                                  PAGAMENTO_NORMAL, PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA,
+                                  RESERVA_NO_SHOW)
 from src.utils.formatacao import formatar_moeda
 from src.utils.sessao import Sessao
 
@@ -43,7 +44,8 @@ class PagamentoService:
         """Total, quanto ficou pago (já sem os reembolsos), saldo pendente e situação."""
         reserva = self._obter_reserva(reserva_id)
         return regras.resumir(reserva.valor_total, self.repo.listar_por_reserva(reserva_id),
-                              cancelada=reserva.situacao == RESERVA_CANCELADA)
+                              cancelada=reserva.situacao == RESERVA_CANCELADA,
+                              no_show=reserva.situacao == RESERVA_NO_SHOW)
 
     def reembolsaveis(self, reserva_id):
         """[(Pagamento, quanto ainda pode ser reembolsado)] dos pagamentos que ainda têm valor a devolver."""
@@ -67,6 +69,9 @@ class PagamentoService:
         reserva = self._obter_reserva(reserva_id)
         if reserva.situacao == RESERVA_CANCELADA:
             raise ErroNegocio("Não é possível registrar pagamento em uma reserva cancelada.")
+        if reserva.situacao == RESERVA_NO_SHOW:
+            raise ErroNegocio("Não é possível registrar pagamento em uma reserva em que o "
+                              "hóspede não compareceu.")
 
         valor = self._validar_valor(valor, "pagamento")
         self._validar_forma(forma)

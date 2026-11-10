@@ -57,6 +57,7 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
     (2, "101", -12, -9, "Finalizada"),
     (3, "102", -4, -1, "Finalizada"),
     (4, "202", -6, -3, "Finalizada"),
+    (3, "301", -3, -1, "Não compareceu"),   # nunca chegou: marcada como no-show
 ]
 
 # Horários REAIS de quem já fez check-in (e check-out). As datas de RESERVAS acima são as
@@ -70,6 +71,15 @@ HORARIOS_REAIS = {
     8: (1, "19:05", 0, "10:40"),     # chegou um dia depois do previsto
     9: (0, "13:30", 0, "14:20"),     # saiu depois do meio-dia
     10: (0, "15:45", 0, "11:15"),
+}
+
+# Cancelamentos e no-shows: quando aconteceu (dias a partir de hoje, hora), quem registrou e,
+# no cancelamento, o motivo. posição em RESERVAS -> (dias, hora, usuário, motivo)
+CANCELAMENTOS = {
+    7: (-2, "10:20", "gerente", "Hóspede desistiu da viagem"),
+}
+NO_SHOWS = {
+    11: (-2, "09:00", "recepcao"),    # marcado na manhã seguinte à data de entrada
 }
 
 PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta), forma, dias a partir de hoje, hora
@@ -148,12 +158,25 @@ def popular():
                 reais.update(checkout_em=datetime.combine(saida + timedelta(days=atraso_out),
                                                           time.fromisoformat(hora_out)),
                              checkout_por=(gerencia if indice % 2 else recepcao).id)
+        if indice in CANCELAMENTOS:
+            dias, hora, quem, motivo = CANCELAMENTOS[indice]
+            reais.update(cancelada_em=datetime.combine(hoje + timedelta(days=dias),
+                                                       time.fromisoformat(hora)),
+                         cancelada_por=repo_u.buscar_por_usuario(quem).id,
+                         cancelamento_motivo=motivo)
+        if indice in NO_SHOWS:
+            dias, hora, quem = NO_SHOWS[indice]
+            reais.update(noshow_em=datetime.combine(hoje + timedelta(days=dias),
+                                                    time.fromisoformat(hora)),
+                         noshow_por=repo_u.buscar_por_usuario(quem).id)
         reservas.append(repo_r.criar(Reserva(
             hospede_id=hospedes[pos].id, quarto_id=quarto.id,
             data_entrada=entrada, data_saida=saida,
             valor_diaria=quarto.preco_diaria,
             valor_total=(saida - entrada).days * quarto.preco_diaria,
-            situacao=situacao, **reais)))
+            situacao=situacao,
+            criada_em=datetime.combine(min(entrada, hoje) - timedelta(days=5), time(10, 0)),
+            **reais)))
 
     # pagamentos de exemplo, lançados pelo administrador e pela recepção
     lancadores = [repo_u.buscar_por_usuario("admin"), repo_u.buscar_por_usuario("recepcao")]

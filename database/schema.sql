@@ -25,13 +25,23 @@ CREATE TABLE IF NOT EXISTS reservas (
     valor_diaria  REAL NOT NULL,
     valor_total   REAL NOT NULL,
     situacao      TEXT NOT NULL DEFAULT 'Confirmada'
-                  CHECK (situacao IN ('Confirmada', 'Hospedada', 'Finalizada', 'Cancelada')),
+                  CHECK (situacao IN ('Confirmada', 'Hospedada', 'Finalizada', 'Cancelada',
+                                      'Não compareceu')),
+    -- quando a reserva foi lançada no sistema
+    criada_em     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),   -- 'AAAA-MM-DD HH:MM:SS'
     -- data_entrada e data_saida são as datas PREVISTAS (não mudam). Os campos abaixo guardam
     -- o que realmente aconteceu: quando o hóspede entrou/saiu e quem fez a operação.
-    checkin_em    TEXT,                          -- 'AAAA-MM-DD HH:MM:SS'
+    checkin_em    TEXT,
     checkin_por   INTEGER REFERENCES usuarios(id),
     checkout_em   TEXT,
     checkout_por  INTEGER REFERENCES usuarios(id),
+    -- cancelamento (situacao = 'Cancelada'): quando, quem cancelou e por quê
+    cancelada_em        TEXT,
+    cancelada_por       INTEGER REFERENCES usuarios(id),
+    cancelamento_motivo TEXT,
+    -- no-show (situacao = 'Não compareceu'): quando foi marcado e quem marcou
+    noshow_em     TEXT,
+    noshow_por    INTEGER REFERENCES usuarios(id),
     CHECK (data_saida > data_entrada)
 );
 

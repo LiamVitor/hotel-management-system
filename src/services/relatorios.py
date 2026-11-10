@@ -1,11 +1,12 @@
 """Cálculos dos relatórios (funções puras)."""
 from datetime import timedelta
 
-from src.utils.constantes import QUARTO_MANUTENCAO, RESERVA_CANCELADA
+from src.utils.constantes import QUARTO_MANUTENCAO, RESERVA_CANCELADA, RESERVA_NO_SHOW
 
 
 def _ativas(reservas):
-    return [r for r in reservas if r.situacao != RESERVA_CANCELADA]
+    """Reservas que ocupam ou ocuparam o quarto (cancelamentos e no-shows ficam de fora)."""
+    return [r for r in reservas if r.situacao not in (RESERVA_CANCELADA, RESERVA_NO_SHOW)]
 
 
 def _total_quartos(quartos):

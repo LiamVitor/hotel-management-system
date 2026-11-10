@@ -5,7 +5,7 @@ import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
 from src.utils.constantes import (FORMAS_PAGAMENTO, PAGTO_CANCELADA, PAGTO_PAGO, PAGTO_PARCIAL,
-                                  PAGTO_PENDENTE, RESERVA_CANCELADA)
+                                  PAGTO_NO_SHOW, PAGTO_PENDENTE, RESERVA_CANCELADA, RESERVA_NO_SHOW)
 from src.utils.formatacao import formatar_data, formatar_moeda, ler_valor
 from src.utils.sessao import Sessao
 from ui.componentes.botoes import botao_primario, botao_secundario
@@ -19,7 +19,7 @@ COLUNAS = [("Data e hora", "data_hora", 125), ("Valor", "valor", 100), ("Forma",
            ("Tipo", "tipo", 90), ("Responsável", "responsavel", 130), ("Detalhe", "detalhe", 215)]
 
 COR_SITUACAO = {PAGTO_PENDENTE: VERMELHO, PAGTO_PARCIAL: "#D97706", PAGTO_PAGO: VERDE,
-                PAGTO_CANCELADA: "#6B7280"}
+                PAGTO_CANCELADA: "#6B7280", PAGTO_NO_SHOW: "#6B7280"}
 COR_REEMBOLSO = "#D97706"
 DICA_DETALHE = "Clique em um lançamento para ver os detalhes."
 
@@ -145,6 +145,8 @@ class JanelaPagamentos(ctk.CTkToplevel):
             return "O seu perfil não pode registrar pagamentos."
         if self.reserva.situacao == RESERVA_CANCELADA:
             return "Reserva cancelada: não aceita novos pagamentos."
+        if self.reserva.situacao == RESERVA_NO_SHOW:
+            return "Hóspede não compareceu: a reserva não aceita novos pagamentos."
         if resumo.saldo <= 0:
             return "Reserva quitada: não há saldo pendente."
         return None

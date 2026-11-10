@@ -3,14 +3,16 @@ import customtkinter as ctk
 
 from src.services import reserva_regras as regras
 from src.utils.constantes import (RESERVA_CANCELADA, RESERVA_CONFIRMADA, RESERVA_FINALIZADA,
-                                  RESERVA_HOSPEDADA)
+                                  RESERVA_HOSPEDADA, RESERVA_NO_SHOW)
 from src.utils.formatacao import formatar_data
 from ui.componentes.botoes import botao_secundario
 from ui.componentes.cartao import Cartao
 from ui.estilos import COR_FUNDO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE, fonte
 
 COR_SITUACAO = {RESERVA_CONFIRMADA: "#2563EB", RESERVA_HOSPEDADA: VERDE,
-                RESERVA_FINALIZADA: "#6B7280", RESERVA_CANCELADA: "#DC2626"}
+                RESERVA_FINALIZADA: "#6B7280", RESERVA_CANCELADA: "#DC2626",
+                RESERVA_NO_SHOW: "#D97706"}
+SITUACOES_SEM_ESTADIA = (RESERVA_CANCELADA, RESERVA_NO_SHOW)   # o hóspede não chegou a se hospedar
 
 
 def abrir_detalhes(master, servicos, reserva_id):
@@ -33,13 +35,15 @@ def descrever_diferenca(dias, evento):
 
 
 class JanelaDetalhesReserva(ctk.CTkToplevel):
-    LARGURA, ALTURA = 780, 480
+    LARGURA, ALTURA = 780, 510
 
     def __init__(self, master, servicos, reserva_id):
         super().__init__(master, fg_color=COR_FUNDO)
         self.reserva = servicos.reservas.buscar_por_id(reserva_id)
         self.servicos = servicos
         self.nomes = servicos.reservas.responsaveis([self.reserva])
+        if self.reserva.situacao in SITUACOES_SEM_ESTADIA:
+            self.ALTURA = 640       # sobra espaço para o quadro de cancelamento / no-show
 
         self.title(f"Detalhes da reserva {reserva_id:04d}")
         self.resizable(False, False)
@@ -94,6 +98,7 @@ class JanelaDetalhesReserva(ctk.CTkToplevel):
         self._linha(previsto, "Entrada", formatar_data(r.data_entrada))
         self._linha(previsto, "Saída", formatar_data(r.data_saida))
         self._linha(previsto, "Diárias previstas", str(regras.calcular_diarias(r.data_entrada, r.data_saida)))
+        self._linha(previsto, "Criada em", texto_evento(r.criada_em, None) if r.criada_em else "—")
         ctk.CTkFrame(previsto, fg_color="transparent", height=10).pack()
 
         real = Cartao(colunas, "Real (o que aconteceu)")
@@ -104,6 +109,12 @@ class JanelaDetalhesReserva(ctk.CTkToplevel):
         self._linha(real, "Noites reais", "—" if noites is None else str(noites))
         ctk.CTkFrame(real, fg_color="transparent", height=10).pack()
 
+        if r.situacao == RESERVA_CANCELADA:
+            self._montar_encerramento("Cancelamento", r.cancelada_em, r.cancelada_por,
+                                      com_motivo=True, motivo=r.cancelamento_motivo)
+        elif r.situacao == RESERVA_NO_SHOW:
+            self._montar_encerramento("Não comparecimento (no-show)", r.noshow_em, r.noshow_por)
+
         notas = Cartao(self, "Previsto x real")
         notas.pack(fill="x", padx=24, pady=(12, 0))
         frases = self._frases()
@@ -112,6 +123,17 @@ class JanelaDetalhesReserva(ctk.CTkToplevel):
                          anchor="w", justify="left", wraplength=self.LARGURA - 90
                          ).pack(anchor="w", padx=20, pady=2)
         ctk.CTkFrame(notas, fg_color="transparent", height=10).pack()
+
+    def _montar_encerramento(self, titulo, quando, usuario_id, com_motivo=False, motivo=None):
+        """Quadro com quando e por quem a reserva foi cancelada ou marcada como no-show."""
+        quadro = Cartao(self, titulo)
+        quadro.pack(fill="x", padx=24, pady=(12, 0))
+        registro = (texto_evento(quando, self.nomes.get(usuario_id)) if quando
+                    else "Não registrado\n(reserva anterior ao registro)")
+        self._linha(quadro, "Registrado em", registro)
+        if com_motivo:
+            self._linha(quadro, "Motivo", motivo or "Não informado")
+        ctk.CTkFrame(quadro, fg_color="transparent", height=10).pack()
 
     @staticmethod
     def _linha(cartao, rotulo, valor):
@@ -127,7 +149,7 @@ class JanelaDetalhesReserva(ctk.CTkToplevel):
         situacao = self.reserva.situacao
         if situacao == RESERVA_CONFIRMADA:
             return "Ainda não realizado"
-        if situacao == RESERVA_CANCELADA:
+        if situacao in SITUACOES_SEM_ESTADIA:
             return "—"
         return "Não registrado\n(reserva anterior ao registro de horários)"
 
@@ -135,7 +157,7 @@ class JanelaDetalhesReserva(ctk.CTkToplevel):
         situacao = self.reserva.situacao
         if situacao in (RESERVA_CONFIRMADA, RESERVA_HOSPEDADA):
             return "Ainda não realizado"
-        if situacao == RESERVA_CANCELADA:
+        if situacao in SITUACOES_SEM_ESTADIA:
             return "—"
         return "Não registrado\n(reserva anterior ao registro de horários)"
 

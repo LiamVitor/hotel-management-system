@@ -49,6 +49,24 @@ def pode_cancelar(reserva):
     return reserva.situacao == RESERVA_CONFIRMADA
 
 
+def impedimento_no_show(reserva, hoje):
+    """Texto explicando por que a reserva não pode ser marcada como no-show, ou None se pode.
+
+    Só vale para reserva confirmada (sem check-in) e a partir da data de entrada prevista:
+    antes disso o hóspede ainda pode chegar.
+    """
+    if reserva.situacao != RESERVA_CONFIRMADA:
+        return "Só é possível marcar como 'Não compareceu' reservas confirmadas, sem check-in."
+    if hoje < reserva.data_entrada:
+        return (f"O hóspede ainda não passou da data de entrada prevista "
+                f"({reserva.data_entrada:%d/%m/%Y}). Se ele desistiu, cancele a reserva.")
+    return None
+
+
+def pode_marcar_no_show(reserva, hoje):
+    return impedimento_no_show(reserva, hoje) is None
+
+
 def dias_de_diferenca_entrada(reserva):
     """Dias entre a entrada real e a prevista: positivo = chegou depois, negativo = antes.
     None se o check-in ainda não foi registrado."""

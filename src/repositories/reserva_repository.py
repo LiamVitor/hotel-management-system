@@ -3,7 +3,7 @@ from datetime import date, datetime
 from database.conexao import inserir, executar, consultar_um, consultar_todos
 from src.models.reserva import Reserva
 from src.utils.constantes import (RESERVA_CANCELADA, RESERVA_CONFIRMADA, RESERVA_FINALIZADA,
-                                  RESERVA_HOSPEDADA)
+                                  RESERVA_HOSPEDADA, RESERVA_NO_SHOW)
 
 FORMATO_DATA_HORA = dict(sep=" ", timespec="seconds")
 
@@ -30,18 +30,28 @@ class ReservaRepository:
             checkin_por=linha["checkin_por"],
             checkout_em=_data_hora(linha["checkout_em"]),
             checkout_por=linha["checkout_por"],
+            criada_em=_data_hora(linha["criada_em"]),
+            cancelada_em=_data_hora(linha["cancelada_em"]),
+            cancelada_por=linha["cancelada_por"],
+            cancelamento_motivo=linha["cancelamento_motivo"],
+            noshow_em=_data_hora(linha["noshow_em"]),
+            noshow_por=linha["noshow_por"],
         )
 
     def _para_objetos(self, linhas):
         return [self._para_objeto(linha) for linha in linhas]
 
     def criar(self, reserva, conexao=None):
+        # toda reserva guarda quando foi criada: se quem chamou não informou, é agora
+        if reserva.criada_em is None:
+            reserva.criada_em = datetime.now().replace(microsecond=0)
         reserva.id = inserir(
             """INSERT INTO reservas
                (hospede_id, quarto_id, data_entrada, data_saida,
-                valor_diaria, valor_total, situacao,
-                checkin_em, checkin_por, checkout_em, checkout_por)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                valor_diaria, valor_total, situacao, criada_em,
+                checkin_em, checkin_por, checkout_em, checkout_por,
+                cancelada_em, cancelada_por, cancelamento_motivo, noshow_em, noshow_por)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 reserva.hospede_id,
                 reserva.quarto_id,
@@ -50,10 +60,16 @@ class ReservaRepository:
                 reserva.valor_diaria,
                 reserva.valor_total,
                 reserva.situacao,
+                reserva.criada_em.isoformat(**FORMATO_DATA_HORA),
                 reserva.checkin_em.isoformat(**FORMATO_DATA_HORA) if reserva.checkin_em else None,
                 reserva.checkin_por,
                 reserva.checkout_em.isoformat(**FORMATO_DATA_HORA) if reserva.checkout_em else None,
                 reserva.checkout_por,
+                reserva.cancelada_em.isoformat(**FORMATO_DATA_HORA) if reserva.cancelada_em else None,
+                reserva.cancelada_por,
+                reserva.cancelamento_motivo,
+                reserva.noshow_em.isoformat(**FORMATO_DATA_HORA) if reserva.noshow_em else None,
+                reserva.noshow_por,
             ),
             conexao=conexao,
         )
@@ -145,10 +161,31 @@ class ReservaRepository:
         )
         return afetadas > 0
 
-    def cancelar(self, reserva_id, conexao=None):
+    def registrar_cancelamento(self, reserva_id, quando, usuario_id, motivo, conexao=None):
+        """Cancela a reserva e grava quando, por quem e por que foi cancelada.
+
+        Só age se a reserva ainda está confirmada; devolve False se não agiu.
+        """
         afetadas = executar(
-            "UPDATE reservas SET situacao = ? WHERE id = ?",
-            (RESERVA_CANCELADA, reserva_id),
+            """UPDATE reservas
+               SET situacao = ?, cancelada_em = ?, cancelada_por = ?, cancelamento_motivo = ?
+               WHERE id = ? AND situacao = ?""",
+            (RESERVA_CANCELADA, quando.isoformat(**FORMATO_DATA_HORA), usuario_id, motivo,
+             reserva_id, RESERVA_CONFIRMADA),
+            conexao=conexao,
+        )
+        return afetadas > 0
+
+    def registrar_no_show(self, reserva_id, quando, usuario_id, conexao=None):
+        """Marca a reserva como 'Não compareceu' e grava quando e por quem foi marcada.
+
+        Só age se a reserva ainda está confirmada; devolve False se não agiu.
+        """
+        afetadas = executar(
+            """UPDATE reservas SET situacao = ?, noshow_em = ?, noshow_por = ?
+               WHERE id = ? AND situacao = ?""",
+            (RESERVA_NO_SHOW, quando.isoformat(**FORMATO_DATA_HORA), usuario_id,
+             reserva_id, RESERVA_CONFIRMADA),
             conexao=conexao,
         )
         return afetadas > 0

@@ -19,7 +19,7 @@ ROTULOS_PERFIL = {
 _RECEPCAO = frozenset({
     "hospedes.ver", "hospedes.salvar",
     "quartos.ver",
-    "reservas.ver", "reservas.criar", "reservas.checkin",
+    "reservas.ver", "reservas.criar", "reservas.checkin", "reservas.noshow",
     "pagamentos.registrar",
 })
 _GERENCIA = _RECEPCAO | {

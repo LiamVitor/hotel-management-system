@@ -10,6 +10,7 @@ from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoTexto, reformatar_entrada
 from ui.componentes.cartao import Cartao
+from ui.componentes.janela_cancelamento import abrir_cancelamento
 from ui.componentes.janela_detalhes_reserva import abrir_detalhes
 from ui.componentes.janela_pagamentos import abrir_pagamentos as abrir_janela_pagamentos
 from ui.componentes.janela_reembolso import abrir_reembolso
@@ -26,7 +27,7 @@ from src.utils.formatacao import (formatar_cpf, formatar_data, formatar_moeda,
 
 COLUNAS = [("Código", "codigo", 66), ("Hóspede", "hospede", 190), ("Quarto", "quarto", 62),
            ("Entrada", "entrada", 95), ("Saída", "saida", 95), ("Total", "total", 110),
-           ("Status", "situacao", 100), ("Pagamento", "pagamento", 95)]
+           ("Status", "situacao", 125), ("Pagamento", "pagamento", 100)]
 
 COLUNAS_SELECAO_HOSPEDE = [("Nome", "nome", 230), ("CPF", "cpf", 130),
                            ("Telefone", "telefone", 140), ("E-mail", "email", 200)]
@@ -113,6 +114,9 @@ class TelaReservas(TelaBase):
         if Sessao.pode("reservas.cancelar"):
             botao_perigo(acoes, "Cancelar reserva selecionada", self.cancelar, 240
                          ).pack(side="left")
+        if Sessao.pode("reservas.noshow"):
+            botao_secundario(acoes, "Marcar no-show", self.marcar_no_show, 150
+                             ).pack(side="left", padx=(10, 0))
         botao_secundario(acoes, "Pagamentos da reserva selecionada", self.abrir_pagamentos, 270
                          ).pack(side="left", padx=(10, 0))
         botao_secundario(acoes, "Detalhes da reserva", self.abrir_detalhes, 160
@@ -388,16 +392,39 @@ class TelaReservas(TelaBase):
             messagebox.showerror("Não é possível cancelar",
                                  "Só é possível cancelar reservas confirmadas, antes do check-in.")
             return
-        if not messagebox.askyesno("Cancelar reserva", f"Cancelar a reserva {linha['codigo']}?"):
-            return
-        try:
-            self.servicos.reservas.cancelar(linha["id"])
-        except ErroNegocio as erro:
-            messagebox.showerror("Não é possível cancelar", str(erro))
+        # a janela pede o motivo (obrigatório) e registra data, hora e usuário no cancelamento
+        if not abrir_cancelamento(self, self.servicos, linha["id"]):
             return
         self.atualizar_tabela()
         self.atualizar_resumo()
         self._oferecer_reembolso(linha)
+
+    def marcar_no_show(self):
+        linha = self.tabela.selecionado()
+        if linha is None:
+            messagebox.showinfo("No-show", "Selecione uma reserva na tabela.")
+            return
+        reserva = self.servicos.reservas.buscar_por_id(linha["id"])
+        impedimento = self.servicos.reservas.impedimento_no_show(reserva) if reserva else None
+        if reserva is None or impedimento:
+            messagebox.showerror("Não é possível marcar", impedimento or "Reserva não encontrada.")
+            return
+        pergunta = (f"Marcar a reserva {linha['codigo']} de {linha['hospede']} como "
+                    "'Não compareceu'?\n\nO quarto volta a ficar livre para o período. "
+                    "A marcação fica registrada com a data, a hora e o seu usuário.")
+        if not messagebox.askyesno("Marcar no-show", pergunta):
+            return
+        try:
+            reserva = self.servicos.reservas.marcar_no_show(linha["id"])
+        except ErroNegocio as erro:
+            messagebox.showerror("Não é possível marcar", str(erro))
+            return
+        self.atualizar_tabela()
+        self.atualizar_resumo()
+        nome = self.servicos.reservas.responsaveis([reserva]).get(reserva.noshow_por, "—")
+        messagebox.showinfo("No-show registrado",
+                            f"Reserva {linha['codigo']} marcada como 'Não compareceu' em "
+                            f"{reserva.noshow_em:%d/%m/%Y} às {reserva.noshow_em:%H:%M}, por {nome}.")
 
     def _oferecer_reembolso(self, linha):
         """Depois de cancelar uma reserva já paga, oferece registrar a devolução do valor."""

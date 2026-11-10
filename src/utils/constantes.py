@@ -12,7 +12,12 @@ RESERVA_CONFIRMADA = "Confirmada"
 RESERVA_HOSPEDADA = "Hospedada"
 RESERVA_FINALIZADA = "Finalizada"
 RESERVA_CANCELADA = "Cancelada"
-SITUACOES_RESERVA = [RESERVA_CONFIRMADA, RESERVA_HOSPEDADA, RESERVA_FINALIZADA, RESERVA_CANCELADA]
+RESERVA_NO_SHOW = "Não compareceu"   # hóspede não apareceu (no-show)
+SITUACOES_RESERVA = [RESERVA_CONFIRMADA, RESERVA_HOSPEDADA, RESERVA_FINALIZADA,
+                     RESERVA_CANCELADA, RESERVA_NO_SHOW]
+
+MOTIVO_CANCELAMENTO_MIN = 3
+MOTIVO_CANCELAMENTO_MAX = 200
 
 FORMAS_PAGAMENTO = ["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Transferência"]
 
@@ -23,6 +28,7 @@ PAGTO_PENDENTE = "Pendente"    # nada pago
 PAGTO_PARCIAL = "Parcial"      # pagou parte, ainda deve
 PAGTO_PAGO = "Pago"            # quitada
 PAGTO_CANCELADA = "Cancelada"  # reserva cancelada: não há saldo a cobrar
+PAGTO_NO_SHOW = "Não compareceu"  # hóspede não veio: também não há saldo a cobrar
 
 MOTIVO_REEMBOLSO_MIN = 3
 MOTIVO_REEMBOLSO_MAX = 200

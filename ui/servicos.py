@@ -7,7 +7,7 @@ from src.services.pagamento_service import PagamentoService
 from src.services.quarto_service import QuartoService
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
-from src.utils.constantes import PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA
+from src.utils.constantes import PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA, RESERVA_NO_SHOW
 from src.utils.formatacao import formatar_data, formatar_data_hora, formatar_moeda
 
 
@@ -29,6 +29,7 @@ class Servicos:
         for r in reservas:
             pago = totais_pagos.get(r.id, 0.0)
             cancelada = r.situacao == RESERVA_CANCELADA
+            no_show = r.situacao == RESERVA_NO_SHOW
             linhas.append({
                 "id": r.id,
                 "codigo": f"{r.id:04d}",
@@ -40,6 +41,7 @@ class Servicos:
                 "pago": formatar_moeda(pago),
                 "saldo": formatar_moeda(saldo_pendente(r.valor_total, pago)),
                 "pagamento": (("A reembolsar" if pago > 0 else "—") if cancelada
+                              else ("Valor retido" if pago > 0 else "—") if no_show
                               else situacao_pagamento(r.valor_total, pago)),
                 "situacao": r.situacao,
                 # datas e horários REAIS (as de cima, entrada e saida, são as previstas)
@@ -47,6 +49,9 @@ class Servicos:
                 "checkin_real_curto": formatar_data_hora(r.checkin_em, curto=True),
                 "checkout_real": formatar_data_hora(r.checkout_em),
                 "checkout_real_curto": formatar_data_hora(r.checkout_em, curto=True),
+                "criada_em": formatar_data_hora(r.criada_em),
+                "cancelada_em": formatar_data_hora(r.cancelada_em),
+                "noshow_em": formatar_data_hora(r.noshow_em),
             })
         return linhas
 

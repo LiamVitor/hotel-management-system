@@ -1,8 +1,8 @@
 """Regras de pagamento e reembolso (funções puras, fáceis de testar)."""
 from dataclasses import dataclass
 
-from src.utils.constantes import (PAGAMENTO_REEMBOLSO, PAGTO_CANCELADA, PAGTO_PAGO, PAGTO_PARCIAL,
-                                  PAGTO_PENDENTE)
+from src.utils.constantes import (PAGAMENTO_REEMBOLSO, PAGTO_CANCELADA, PAGTO_NO_SHOW, PAGTO_PAGO,
+                                  PAGTO_PARCIAL, PAGTO_PENDENTE)
 
 
 @dataclass(frozen=True)
@@ -10,7 +10,7 @@ class ResumoPagamento:
     valor_total: float
     total_pago: float          # pagamentos menos reembolsos (o que realmente ficou com o hotel)
     saldo: float
-    situacao: str              # Pendente | Parcial | Pago | Cancelada
+    situacao: str              # Pendente | Parcial | Pago | Cancelada | Não compareceu
     total_reembolsado: float = 0.0
 
 
@@ -53,16 +53,17 @@ def situacao_pagamento(valor_total, pago):
     return PAGTO_PARCIAL
 
 
-def resumir(valor_total, pagamentos, cancelada=False):
+def resumir(valor_total, pagamentos, cancelada=False, no_show=False):
     """Resumo financeiro da reserva.
 
-    Numa reserva cancelada não há nada a cobrar: o saldo é zero e o que consta em
-    total_pago é o valor que ainda está com o hotel (e pode ser reembolsado).
+    Numa reserva cancelada ou de no-show não há nada a cobrar: o saldo é zero e o que consta
+    em total_pago é o valor que ainda está com o hotel (e pode ser reembolsado).
     """
     pago = total_pago(pagamentos)
     reembolsado = total_reembolsado(pagamentos)
-    if cancelada:
-        return ResumoPagamento(arredondar(valor_total), pago, 0.0, PAGTO_CANCELADA, reembolsado)
+    if cancelada or no_show:
+        situacao = PAGTO_CANCELADA if cancelada else PAGTO_NO_SHOW
+        return ResumoPagamento(arredondar(valor_total), pago, 0.0, situacao, reembolsado)
     return ResumoPagamento(
         valor_total=arredondar(valor_total),
         total_pago=pago,
