@@ -1,6 +1,7 @@
 from datetime import date
 from tkinter import messagebox
 
+from src.services import reserva_regras as regras
 from src.services.erros import ErroNegocio
 from ui.componentes.cartao import Cartao
 from ui.componentes.janela_pagamentos import abrir_pagamentos
@@ -12,9 +13,9 @@ from src.utils.sessao import Sessao
 
 COLUNAS_CHECKIN = [("Hóspede", "hospede", 230), ("Quarto", "quarto", 80),
                    ("Entrada", "entrada", 110), ("Saída", "saida", 110), ("Status", "situacao", 110)]
-COLUNAS_CHECKOUT = [("Hóspede", "hospede", 230), ("Quarto", "quarto", 80),
-                    ("Entrada", "entrada", 110), ("Saída", "saida", 110),
-                    ("Saldo a pagar", "saldo", 120)]
+COLUNAS_CHECKOUT = [("Hóspede", "hospede", 190), ("Quarto", "quarto", 65),
+                    ("Entrada", "entrada", 90), ("Saída", "saida", 90),
+                    ("Check-in real", "checkin_real_curto", 110), ("Saldo a pagar", "saldo", 105)]
 
 
 class TelaCheckinCheckout(TelaBase):
@@ -52,11 +53,13 @@ class TelaCheckinCheckout(TelaBase):
         if not messagebox.askyesno("Check-in", pergunta):
             return
         try:
-            self.servicos.reservas.fazer_checkin(linha["id"])
+            reserva = self.servicos.reservas.fazer_checkin(linha["id"])
         except ErroNegocio as erro:
             messagebox.showerror("Check-in", str(erro))
             return
         self.atualizar_tabelas()
+        self._avisar("Check-in realizado", f"Check-in de {linha['hospede']} registrado", reserva,
+                     reserva.checkin_em, reserva.checkin_por)
 
     def fazer_checkout(self, linha):
         reserva = self.servicos.reservas.buscar_por_id(linha["id"])
@@ -82,8 +85,20 @@ class TelaCheckinCheckout(TelaBase):
         if not messagebox.askyesno("Check-out", pergunta):
             return
         try:
-            self.servicos.reservas.fazer_checkout(linha["id"])
+            reserva = self.servicos.reservas.fazer_checkout(linha["id"])
         except ErroNegocio as erro:
             messagebox.showerror("Check-out", str(erro))
             return
         self.atualizar_tabelas()
+        noites = regras.noites_reais(reserva)
+        self._avisar("Check-out realizado", f"Check-out de {linha['hospede']} registrado", reserva,
+                     reserva.checkout_em, reserva.checkout_por,
+                     extra=f"Permanência real: {noites} noite(s)." if noites is not None else "")
+
+    def _avisar(self, titulo, inicio, reserva, quando, usuario_id, extra=""):
+        """Confirma na tela o momento real e quem fez a operação (o usuário logado)."""
+        nome = self.servicos.reservas.responsaveis([reserva]).get(usuario_id, "—")
+        mensagem = f"{inicio} em {quando:%d/%m/%Y} às {quando:%H:%M}, por {nome}."
+        if extra:
+            mensagem += f"\n\n{extra}"
+        messagebox.showinfo(titulo, mensagem)

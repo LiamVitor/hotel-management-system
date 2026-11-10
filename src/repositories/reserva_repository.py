@@ -1,8 +1,15 @@
-from datetime import date
+from datetime import date, datetime
 
 from database.conexao import inserir, executar, consultar_um, consultar_todos
 from src.models.reserva import Reserva
-from src.utils.constantes import RESERVA_CANCELADA, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA
+from src.utils.constantes import (RESERVA_CANCELADA, RESERVA_CONFIRMADA, RESERVA_FINALIZADA,
+                                  RESERVA_HOSPEDADA)
+
+FORMATO_DATA_HORA = dict(sep=" ", timespec="seconds")
+
+
+def _data_hora(valor):
+    return datetime.fromisoformat(valor) if valor else None
 
 
 class ReservaRepository:
@@ -19,6 +26,10 @@ class ReservaRepository:
             valor_diaria=linha["valor_diaria"],
             valor_total=linha["valor_total"],
             situacao=linha["situacao"],
+            checkin_em=_data_hora(linha["checkin_em"]),
+            checkin_por=linha["checkin_por"],
+            checkout_em=_data_hora(linha["checkout_em"]),
+            checkout_por=linha["checkout_por"],
         )
 
     def _para_objetos(self, linhas):
@@ -28,8 +39,9 @@ class ReservaRepository:
         reserva.id = inserir(
             """INSERT INTO reservas
                (hospede_id, quarto_id, data_entrada, data_saida,
-                valor_diaria, valor_total, situacao)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                valor_diaria, valor_total, situacao,
+                checkin_em, checkin_por, checkout_em, checkout_por)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 reserva.hospede_id,
                 reserva.quarto_id,
@@ -38,6 +50,10 @@ class ReservaRepository:
                 reserva.valor_diaria,
                 reserva.valor_total,
                 reserva.situacao,
+                reserva.checkin_em.isoformat(**FORMATO_DATA_HORA) if reserva.checkin_em else None,
+                reserva.checkin_por,
+                reserva.checkout_em.isoformat(**FORMATO_DATA_HORA) if reserva.checkout_em else None,
+                reserva.checkout_por,
             ),
             conexao=conexao,
         )
@@ -96,6 +112,35 @@ class ReservaRepository:
                 reserva.situacao,
                 reserva.id,
             ),
+            conexao=conexao,
+        )
+        return afetadas > 0
+
+    def registrar_checkin(self, reserva_id, quando, usuario_id, conexao=None):
+        """Marca a reserva como hospedada e grava quando e por quem foi feito o check-in.
+
+        Só age se a reserva ainda está confirmada e sem check-in; devolve False se não agiu.
+        As datas previstas (data_entrada e data_saida) não são tocadas.
+        """
+        afetadas = executar(
+            """UPDATE reservas SET situacao = ?, checkin_em = ?, checkin_por = ?
+               WHERE id = ? AND situacao = ? AND checkin_em IS NULL""",
+            (RESERVA_HOSPEDADA, quando.isoformat(**FORMATO_DATA_HORA), usuario_id,
+             reserva_id, RESERVA_CONFIRMADA),
+            conexao=conexao,
+        )
+        return afetadas > 0
+
+    def registrar_checkout(self, reserva_id, quando, usuario_id, conexao=None):
+        """Finaliza a reserva e grava quando e por quem foi feito o check-out.
+
+        Só age se a reserva está hospedada e ainda sem check-out; devolve False se não agiu.
+        """
+        afetadas = executar(
+            """UPDATE reservas SET situacao = ?, checkout_em = ?, checkout_por = ?
+               WHERE id = ? AND situacao = ? AND checkout_em IS NULL""",
+            (RESERVA_FINALIZADA, quando.isoformat(**FORMATO_DATA_HORA), usuario_id,
+             reserva_id, RESERVA_HOSPEDADA),
             conexao=conexao,
         )
         return afetadas > 0

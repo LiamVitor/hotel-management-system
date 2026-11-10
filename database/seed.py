@@ -59,6 +59,19 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
     (4, "202", -6, -3, "Finalizada"),
 ]
 
+# Horários REAIS de quem já fez check-in (e check-out). As datas de RESERVAS acima são as
+# previstas: aqui alguns hóspedes chegam ou saem em outro dia ou horário.
+# posição da reserva em RESERVAS -> (dias de atraso no check-in, hora, dias de atraso no check-out, hora)
+HORARIOS_REAIS = {
+    1: (0, "16:20", 0, "11:00"),
+    3: (0, "15:05", 0, "11:00"),
+    5: (0, "14:10", 0, "11:20"),
+    6: (0, "13:40", 0, "10:30"),
+    8: (1, "19:05", 0, "10:40"),     # chegou um dia depois do previsto
+    9: (0, "13:30", 0, "14:20"),     # saiu depois do meio-dia
+    10: (0, "15:45", 0, "11:15"),
+}
+
 PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta), forma, dias a partir de hoje, hora
     (0, 0.3, "PIX", -1, "10:15"),                # sinal de uma reserva confirmada
     (1, 0.5, "PIX", -2, "14:05"),                # hospedado, pagou metade
@@ -120,16 +133,27 @@ def popular():
                for numero, tipo, cap, preco, situacao in QUARTOS}
 
     hoje = date.today()
+    recepcao, gerencia = repo_u.buscar_por_usuario("recepcao"), repo_u.buscar_por_usuario("gerente")
     reservas = []
-    for pos, numero, ini, fim, situacao in RESERVAS:
+    for indice, (pos, numero, ini, fim, situacao) in enumerate(RESERVAS):
         quarto = quartos[numero]
         entrada, saida = hoje + timedelta(days=ini), hoje + timedelta(days=fim)
+        reais = {}
+        if situacao in ("Hospedada", "Finalizada"):
+            atraso_in, hora_in, atraso_out, hora_out = HORARIOS_REAIS[indice]
+            reais = dict(checkin_em=datetime.combine(entrada + timedelta(days=atraso_in),
+                                                     time.fromisoformat(hora_in)),
+                         checkin_por=recepcao.id)
+            if situacao == "Finalizada":
+                reais.update(checkout_em=datetime.combine(saida + timedelta(days=atraso_out),
+                                                          time.fromisoformat(hora_out)),
+                             checkout_por=(gerencia if indice % 2 else recepcao).id)
         reservas.append(repo_r.criar(Reserva(
             hospede_id=hospedes[pos].id, quarto_id=quarto.id,
             data_entrada=entrada, data_saida=saida,
             valor_diaria=quarto.preco_diaria,
             valor_total=(saida - entrada).days * quarto.preco_diaria,
-            situacao=situacao)))
+            situacao=situacao, **reais)))
 
     # pagamentos de exemplo, lançados pelo administrador e pela recepção
     lancadores = [repo_u.buscar_por_usuario("admin"), repo_u.buscar_por_usuario("recepcao")]

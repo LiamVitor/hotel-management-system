@@ -47,3 +47,27 @@ def pode_fazer_checkin(reserva):
 def pode_cancelar(reserva):
     """Cancelamento só antes do check-in."""
     return reserva.situacao == RESERVA_CONFIRMADA
+
+
+def dias_de_diferenca_entrada(reserva):
+    """Dias entre a entrada real e a prevista: positivo = chegou depois, negativo = antes.
+    None se o check-in ainda não foi registrado."""
+    if reserva.checkin_em is None:
+        return None
+    return (reserva.checkin_em.date() - reserva.data_entrada).days
+
+
+def dias_de_diferenca_saida(reserva):
+    """Dias entre a saída real e a prevista: positivo = saiu depois, negativo = antes.
+    None se o check-out ainda não foi registrado."""
+    if reserva.checkout_em is None:
+        return None
+    return (reserva.checkout_em.date() - reserva.data_saida).days
+
+
+def noites_reais(reserva):
+    """Noites que o hóspede realmente ficou (do dia do check-in ao do check-out).
+    None se faltar o check-in ou o check-out."""
+    if reserva.checkin_em is None or reserva.checkout_em is None:
+        return None
+    return max((reserva.checkout_em.date() - reserva.checkin_em.date()).days, 0)

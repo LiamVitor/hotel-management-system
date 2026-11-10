@@ -10,6 +10,7 @@ from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoTexto, reformatar_entrada
 from ui.componentes.cartao import Cartao
+from ui.componentes.janela_detalhes_reserva import abrir_detalhes
 from ui.componentes.janela_pagamentos import abrir_pagamentos as abrir_janela_pagamentos
 from ui.componentes.janela_reembolso import abrir_reembolso
 from ui.componentes.seletor import CampoSeletor, JanelaSelecao
@@ -113,6 +114,8 @@ class TelaReservas(TelaBase):
             botao_perigo(acoes, "Cancelar reserva selecionada", self.cancelar, 240
                          ).pack(side="left")
         botao_secundario(acoes, "Pagamentos da reserva selecionada", self.abrir_pagamentos, 270
+                         ).pack(side="left", padx=(10, 0))
+        botao_secundario(acoes, "Detalhes da reserva", self.abrir_detalhes, 160
                          ).pack(side="left", padx=(10, 0))
         self.lbl_filtro = ctk.CTkLabel(acoes, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
         self.lbl_filtro.pack(side="left", padx=14)
@@ -360,6 +363,13 @@ class TelaReservas(TelaBase):
                             f"Reserva criada. Total: {formatar_moeda(reserva.valor_total)}")
         self.limpar()
         self.atualizar_tabela()
+
+    def abrir_detalhes(self):
+        linha = self.tabela.selecionado()
+        if linha is None:
+            messagebox.showinfo("Detalhes", "Selecione uma reserva na tabela.")
+            return
+        abrir_detalhes(self, self.servicos, linha["id"])
 
     def abrir_pagamentos(self, _linha=None):
         linha = self.tabela.selecionado()

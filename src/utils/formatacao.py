@@ -36,6 +36,13 @@ def formatar_data(data):
     return data.strftime("%d/%m/%Y")
 
 
+def formatar_data_hora(valor, curto=False):
+    """'08/11/2026 14:32' (ou '08/11 14:32' se curto). '—' quando não há data/hora."""
+    if valor is None:
+        return "—"
+    return valor.strftime("%d/%m %H:%M" if curto else "%d/%m/%Y %H:%M")
+
+
 def ler_data(texto):
     """Converte 'dd/mm/aaaa' em date. Levanta ValueError se for inválida."""
     try:

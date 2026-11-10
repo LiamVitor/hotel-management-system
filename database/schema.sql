@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS reservas (
     valor_total   REAL NOT NULL,
     situacao      TEXT NOT NULL DEFAULT 'Confirmada'
                   CHECK (situacao IN ('Confirmada', 'Hospedada', 'Finalizada', 'Cancelada')),
+    -- data_entrada e data_saida são as datas PREVISTAS (não mudam). Os campos abaixo guardam
+    -- o que realmente aconteceu: quando o hóspede entrou/saiu e quem fez a operação.
+    checkin_em    TEXT,                          -- 'AAAA-MM-DD HH:MM:SS'
+    checkin_por   INTEGER REFERENCES usuarios(id),
+    checkout_em   TEXT,
+    checkout_por  INTEGER REFERENCES usuarios(id),
     CHECK (data_saida > data_entrada)
 );
 
@@ -40,18 +46,19 @@ CREATE TABLE IF NOT EXISTS usuarios (
     ativo    INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1))
 );
 
+
 -- Cada linha é um lançamento financeiro de uma reserva: um pagamento do hóspede ou um
 -- reembolso (devolução) a ele. Uma reserva pode ter vários. O histórico é preservado:
 -- os gatilhos abaixo impedem alterar ou excluir qualquer lançamento.
 CREATE TABLE IF NOT EXISTS pagamentos (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    reserva_id  INTEGER NOT NULL REFERENCES reservas(id) ON DELETE RESTRICT,
-    data_hora   TEXT NOT NULL,                    -- 'AAAA-MM-DD HH:MM:SS'
-    valor       REAL NOT NULL CHECK (valor > 0),
-    forma       TEXT NOT NULL,                    -- PIX, Dinheiro, Cartão de crédito...
-    tipo        TEXT NOT NULL DEFAULT 'Pagamento'
-                CHECK (tipo IN ('Pagamento', 'Reembolso')),
-    usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    reserva_id           INTEGER NOT NULL REFERENCES reservas(id) ON DELETE RESTRICT,
+    data_hora            TEXT NOT NULL,                  -- 'AAAA-MM-DD HH:MM:SS'
+    valor                REAL NOT NULL CHECK (valor > 0),
+    forma                TEXT NOT NULL,                  -- PIX, Dinheiro, Cartão de crédito...
+    tipo                 TEXT NOT NULL DEFAULT 'Pagamento'
+                         CHECK (tipo IN ('Pagamento', 'Reembolso')),
+    usuario_id           INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
     motivo               TEXT,                           -- obrigatório nos reembolsos
     pagamento_origem_id  INTEGER REFERENCES pagamentos(id) ON DELETE RESTRICT
                                                          -- reembolso: pagamento devolvido (opcional)
@@ -70,6 +77,7 @@ BEFORE UPDATE ON pagamentos
 BEGIN
     SELECT RAISE(ABORT, 'Lançamentos financeiros não podem ser alterados.');
 END;
+
 
 -- Categorias para classificar as despesas (manutenção, alimentação, limpeza, salários...).
 -- Uma categoria nunca é apagada: se não for mais usada, é desativada (ativa = 0), assim

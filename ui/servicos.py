@@ -8,7 +8,7 @@ from src.services.quarto_service import QuartoService
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
 from src.utils.constantes import PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA
-from src.utils.formatacao import formatar_data, formatar_moeda
+from src.utils.formatacao import formatar_data, formatar_data_hora, formatar_moeda
 
 
 class Servicos:
@@ -42,6 +42,11 @@ class Servicos:
                 "pagamento": (("A reembolsar" if pago > 0 else "—") if cancelada
                               else situacao_pagamento(r.valor_total, pago)),
                 "situacao": r.situacao,
+                # datas e horários REAIS (as de cima, entrada e saida, são as previstas)
+                "checkin_real": formatar_data_hora(r.checkin_em),
+                "checkin_real_curto": formatar_data_hora(r.checkin_em, curto=True),
+                "checkout_real": formatar_data_hora(r.checkout_em),
+                "checkout_real_curto": formatar_data_hora(r.checkout_em, curto=True),
             })
         return linhas
 
