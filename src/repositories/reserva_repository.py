@@ -83,6 +83,21 @@ class ReservaRepository:
         linhas = consultar_todos("SELECT * FROM reservas ORDER BY data_entrada DESC")
         return self._para_objetos(linhas)
 
+    def listar_no_periodo(self, inicio, fim):
+        """Reservas que ocupam o quarto em algum dia de inicio a fim (limites incluídos).
+
+        Fica de fora o que não ocupou quarto (canceladas e no-shows), e o filtro é feito no
+        banco: um relatório de um ano não precisa carregar o histórico inteiro do hotel.
+        Uma reserva ocupa as noites de data_entrada até o dia anterior a data_saida.
+        """
+        linhas = consultar_todos(
+            """SELECT * FROM reservas
+               WHERE situacao NOT IN (?, ?) AND data_entrada <= ? AND data_saida > ?
+               ORDER BY data_entrada""",
+            (RESERVA_CANCELADA, RESERVA_NO_SHOW, fim.isoformat(), inicio.isoformat()),
+        )
+        return self._para_objetos(linhas)
+
     def listar_por_hospede(self, hospede_id):
         linhas = consultar_todos(
             "SELECT * FROM reservas WHERE hospede_id = ? ORDER BY data_entrada DESC",

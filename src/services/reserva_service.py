@@ -36,6 +36,13 @@ class ReservaService:
     def listar(self):
         return self.repo.listar()
 
+    def listar_para_relatorio(self, inicio, fim):
+        """Reservas que ocuparam quarto no período (sem canceladas nem no-shows).
+
+        Já vem filtrado do banco, para o relatório não carregar o histórico inteiro.
+        """
+        return self.repo.listar_no_periodo(inicio, fim)
+
     def pesquisar(self, termo="", situacao="", periodo_de=None, periodo_ate=None):
         """Filtra as reservas (mais recentes primeiro). Todos os filtros são opcionais.
 

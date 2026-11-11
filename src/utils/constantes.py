@@ -19,6 +19,13 @@ SITUACOES_RESERVA = [RESERVA_CONFIRMADA, RESERVA_HOSPEDADA, RESERVA_FINALIZADA,
 MOTIVO_CANCELAMENTO_MIN = 3
 MOTIVO_CANCELAMENTO_MAX = 200
 
+# Relatórios: tamanho máximo do período consultado e como o gráfico agrupa os dias
+MAX_ANOS_RELATORIO = 5
+MAX_DIAS_RELATORIO = 366 * MAX_ANOS_RELATORIO
+GRANULARIDADE_DIA = "dia"
+GRANULARIDADE_SEMANA = "semana"
+GRANULARIDADE_MES = "mês"
+
 # Bloqueio de quarto: a situação é calculada pelas datas (não fica gravada no banco)
 BLOQUEIO_AGENDADO = "Agendado"
 BLOQUEIO_EM_ANDAMENTO = "Em andamento"

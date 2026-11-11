@@ -143,3 +143,6 @@ CREATE TABLE IF NOT EXISTS bloqueios_quarto (
 );
 
 CREATE INDEX IF NOT EXISTS idx_bloqueios_quarto ON bloqueios_quarto (quarto_id, inicio);
+
+-- Relatórios e consultas por período buscam as reservas que tocam um intervalo de datas
+CREATE INDEX IF NOT EXISTS idx_reservas_periodo ON reservas (data_entrada, data_saida);
