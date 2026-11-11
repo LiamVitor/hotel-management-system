@@ -1,5 +1,6 @@
 """Reúne os services usados pelas telas e prepara linhas para as tabelas."""
 from src.models.pagamento import Pagamento
+from src.services.bloqueio_quarto_service import BloqueioQuartoService
 from src.services.despesa_service import DespesaService
 from src.services.hospede_service import HospedeService
 from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
@@ -15,6 +16,7 @@ class Servicos:
     def __init__(self):
         self.hospedes = HospedeService()
         self.quartos = QuartoService()
+        self.bloqueios = BloqueioQuartoService()
         self.reservas = ReservaService()
         self.pagamentos = PagamentoService()
         self.despesas = DespesaService()
@@ -54,6 +56,21 @@ class Servicos:
                 "noshow_em": formatar_data_hora(r.noshow_em),
             })
         return linhas
+
+    def linhas_bloqueios(self, bloqueios):
+        """Converte bloqueios de quarto em dicionários prontos para a tabela."""
+        numeros = {q.id: q.numero for q in self.quartos.listar()}
+        nomes = self.bloqueios.responsaveis(bloqueios)
+        return [{
+            "id": b.id,
+            "quarto": numeros.get(b.quarto_id, "—"),
+            "inicio": formatar_data_hora(b.inicio),
+            "fim": formatar_data_hora(b.fim),
+            "situacao": self.bloqueios.situacao(b),
+            "motivo": b.motivo,
+            "responsavel": nomes.get(b.usuario_id, "—"),
+            "registrado_em": formatar_data_hora(b.criado_em),
+        } for b in bloqueios]
 
     def linhas_pagamentos(self, historico):
         """Converte [(Pagamento, nome de quem lançou)] em dicionários para a tabela.

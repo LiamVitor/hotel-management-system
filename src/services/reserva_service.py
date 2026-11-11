@@ -2,14 +2,16 @@ from datetime import datetime
 
 from database.conexao import obter_conexao
 from src.models.reserva import Reserva
+from src.repositories.bloqueio_quarto_repository import BloqueioQuartoRepository
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
 from src.repositories.usuario_repository import UsuarioRepository
+from src.services import bloqueio_regras
 from src.services import reserva_regras as regras
 from src.services.erros import ErroNegocio
 from src.utils.filtros import normalizar_texto, parece_numerico
-from src.utils.formatacao import apenas_digitos
+from src.utils.formatacao import apenas_digitos, formatar_data_hora
 from src.utils.sessao import Sessao
 from src.utils.constantes import (MOTIVO_CANCELAMENTO_MAX, MOTIVO_CANCELAMENTO_MIN,
                                   QUARTO_DISPONIVEL, QUARTO_MANUTENCAO, QUARTO_OCUPADO,
@@ -22,11 +24,13 @@ def _agora():
 
 
 class ReservaService:
-    def __init__(self, repo=None, quarto_repo=None, hospede_repo=None, usuario_repo=None):
+    def __init__(self, repo=None, quarto_repo=None, hospede_repo=None, usuario_repo=None,
+                 bloqueio_repo=None):
         self.repo = repo or ReservaRepository()
         self.quarto_repo = quarto_repo or QuartoRepository()
         self.hospede_repo = hospede_repo or HospedeRepository()
         self.usuario_repo = usuario_repo or UsuarioRepository()
+        self.bloqueio_repo = bloqueio_repo or BloqueioQuartoRepository()
 
     # ---------- consultas ----------
     def listar(self):
@@ -105,6 +109,12 @@ class ReservaService:
             raise ErroNegocio("Quarto não encontrado.")
         if quarto.situacao == QUARTO_MANUTENCAO:
             raise ErroNegocio("Quarto em manutenção.")
+        bloqueios = self.bloqueio_repo.listar_sobrepostos(
+            *bloqueio_regras.intervalo_da_reserva(entrada, saida), quarto_id=quarto_id)
+        if bloqueios:
+            b = bloqueios[0]
+            raise ErroNegocio(f"Quarto bloqueado de {formatar_data_hora(b.inicio)} a "
+                              f"{formatar_data_hora(b.fim)} ({b.motivo}).")
         if self.tem_conflito(quarto_id, entrada, saida):
             raise ErroNegocio("Quarto já reservado neste período.")
         try:

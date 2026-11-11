@@ -18,13 +18,13 @@ ROTULOS_PERFIL = {
 # Ações no formato "area.acao".
 _RECEPCAO = frozenset({
     "hospedes.ver", "hospedes.salvar",
-    "quartos.ver",
+    "quartos.ver", "bloqueios.ver",
     "reservas.ver", "reservas.criar", "reservas.checkin", "reservas.noshow",
     "pagamentos.registrar",
 })
 _GERENCIA = _RECEPCAO | {
     "hospedes.excluir",
-    "quartos.salvar", "quartos.excluir",
+    "quartos.salvar", "quartos.excluir", "bloqueios.gerenciar",
     "reservas.cancelar",
     "pagamentos.reembolsar",
     "despesas.gerenciar",

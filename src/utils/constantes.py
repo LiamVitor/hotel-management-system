@@ -19,6 +19,13 @@ SITUACOES_RESERVA = [RESERVA_CONFIRMADA, RESERVA_HOSPEDADA, RESERVA_FINALIZADA,
 MOTIVO_CANCELAMENTO_MIN = 3
 MOTIVO_CANCELAMENTO_MAX = 200
 
+# Bloqueio de quarto: a situação é calculada pelas datas (não fica gravada no banco)
+BLOQUEIO_AGENDADO = "Agendado"
+BLOQUEIO_EM_ANDAMENTO = "Em andamento"
+BLOQUEIO_ENCERRADO = "Encerrado"
+MOTIVO_BLOQUEIO_MIN = 3
+MOTIVO_BLOQUEIO_MAX = 200
+
 FORMAS_PAGAMENTO = ["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Transferência"]
 
 PAGAMENTO_NORMAL = "Pagamento"

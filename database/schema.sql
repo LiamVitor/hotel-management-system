@@ -127,3 +127,19 @@ CREATE TABLE IF NOT EXISTS despesas (
 
 CREATE INDEX IF NOT EXISTS idx_despesas_data ON despesas (data);
 CREATE INDEX IF NOT EXISTS idx_despesas_categoria ON despesas (categoria_id);
+
+-- Períodos em que um quarto fica indisponível para hospedagem (manutenção, reforma...).
+-- Cada linha é um registro do histórico: o bloqueio não é apagado, e a situação dele
+-- (Agendado / Em andamento / Encerrado) é calculada pela data e hora de início e de término.
+CREATE TABLE IF NOT EXISTS bloqueios_quarto (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    quarto_id   INTEGER NOT NULL REFERENCES quartos(id) ON DELETE RESTRICT,
+    inicio      TEXT NOT NULL,                  -- 'AAAA-MM-DD HH:MM:SS'
+    fim         TEXT NOT NULL,                  -- 'AAAA-MM-DD HH:MM:SS'
+    motivo      TEXT NOT NULL,
+    usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,   -- quem registrou
+    criado_em   TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    CHECK (fim > inicio)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bloqueios_quarto ON bloqueios_quarto (quarto_id, inicio);

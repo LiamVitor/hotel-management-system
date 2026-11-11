@@ -8,10 +8,12 @@ from database.conexao import inicializar_banco
 from src.models.usuario import Usuario
 from src.models.hospede import Hospede
 from src.models.quarto import Quarto
+from src.models.bloqueio_quarto import BloqueioQuarto
 from src.models.despesa import Despesa
 from src.models.pagamento import Pagamento
 from src.models.reserva import Reserva
 from src.repositories.usuario_repository import UsuarioRepository
+from src.repositories.bloqueio_quarto_repository import BloqueioQuartoRepository
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.categoria_despesa_repository import CategoriaDespesaRepository
@@ -99,6 +101,12 @@ PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta),
 
 REEMBOLSOS = [  # posição em RESERVAS, posição em PAGAMENTOS (ou None), valor, forma, dias, hora, motivo
     (7, 11, 100.0, "PIX", -2, "10:30", "Cancelamento da reserva (devolução parcial do sinal)"),
+]
+
+BLOQUEIOS = [  # quarto, dias até o início, hora, dias até o término, hora, quem registrou, motivo
+    ("203", -30, "08:00", -28, "18:00", "admin", "Troca do ar-condicionado"),            # encerrado
+    ("204", -3, "08:00", 4, "18:00", "gerente", "Reforma do banheiro"),                 # em andamento
+    ("101", 20, "08:00", 22, "18:00", "gerente", "Dedetização e pintura do quarto"),    # agendado
 ]
 
 DESPESAS = [  # dias atrás, categoria, descrição, valor, quem lançou
@@ -201,6 +209,17 @@ def popular():
             pagamento_origem_id=origem.id if origem else None, usuario_id=gerente.id,
             data_hora=datetime.combine(hoje + timedelta(days=dias), time.fromisoformat(hora))))
 
+    # bloqueios de exemplo (histórico de manutenção): nenhum encosta nas reservas acima
+    repo_b = BloqueioQuartoRepository()
+    for numero, d_ini, h_ini, d_fim, h_fim, quem, motivo in BLOQUEIOS:
+        inicio = datetime.combine(hoje + timedelta(days=d_ini), time.fromisoformat(h_ini))
+        repo_b.criar(BloqueioQuarto(
+            quarto_id=quartos[numero].id, inicio=inicio,
+            fim=datetime.combine(hoje + timedelta(days=d_fim), time.fromisoformat(h_fim)),
+            motivo=motivo, usuario_id=repo_u.buscar_por_usuario(quem).id,
+            # registrado alguns dias antes de começar (e nunca depois de hoje)
+            criado_em=datetime.combine(min(inicio.date(), hoje) - timedelta(days=3), time(8, 0))))
+
     # despesas de exemplo (as categorias já vêm criadas junto com o banco)
     categorias = {c.nome: c.id for c in CategoriaDespesaRepository().listar()}
     repo_d = DespesaRepository()
@@ -212,7 +231,7 @@ def popular():
             criada_em=datetime.combine(dia, time(9, 0))))
     print(f"Banco populado: {len(hospedes)} hóspedes, {len(quartos)} quartos, "
           f"{len(RESERVAS)} reservas, {len(PAGAMENTOS)} pagamentos, {len(REEMBOLSOS)} reembolso(s), "
-          f"{len(DESPESAS)} despesas e {len(USUARIOS)} usuários.")
+          f"{len(BLOQUEIOS)} bloqueios, {len(DESPESAS)} despesas e {len(USUARIOS)} usuários.")
 
 
 if __name__ == "__main__":

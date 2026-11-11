@@ -1,5 +1,7 @@
+from src.repositories.bloqueio_quarto_repository import BloqueioQuartoRepository
 from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
+from src.services import bloqueio_regras
 from src.services.erros import ErroNegocio
 from src.utils.constantes import SITUACOES_QUARTO, TIPOS_QUARTO
 from src.utils.alteracoes import calcular_alteracoes
@@ -9,9 +11,10 @@ from src.utils.sessao import Sessao
 
 
 class QuartoService:
-    def __init__(self, repo=None, reserva_repo=None):
+    def __init__(self, repo=None, reserva_repo=None, bloqueio_repo=None):
         self.repo = repo or QuartoRepository()
         self.reserva_repo = reserva_repo or ReservaRepository()
+        self.bloqueio_repo = bloqueio_repo or BloqueioQuartoRepository()
 
     def listar(self):
         return self.repo.listar()
@@ -51,7 +54,11 @@ class QuartoService:
         return self.repo.buscar_por_id(quarto_id)
 
     def listar_disponiveis(self, entrada, saida, capacidade_minima=1):
-        return self.repo.listar_disponiveis(entrada, saida, capacidade_minima)
+        """Quartos livres no período: sem reserva ativa, fora de manutenção e sem bloqueio."""
+        disponiveis = self.repo.listar_disponiveis(entrada, saida, capacidade_minima)
+        bloqueados = {b.quarto_id for b in self.bloqueio_repo.listar_sobrepostos(
+            *bloqueio_regras.intervalo_da_reserva(entrada, saida))}
+        return [q for q in disponiveis if q.id not in bloqueados]
 
     def validar(self, quarto):
         """Normaliza e valida os dados, sem gravar nada. Levanta ErroNegocio se algo estiver errado."""
@@ -97,4 +104,6 @@ class QuartoService:
         if self.reserva_repo.listar_por_quarto(quarto_id):
             raise ErroNegocio("Este quarto possui reservas. Se não for mais usado, "
                               "altere o status para Manutenção.")
+        if self.bloqueio_repo.existe_por_quarto(quarto_id):
+            raise ErroNegocio("Este quarto possui histórico de bloqueios e não pode ser excluído.")
         self.repo.remover(quarto_id)

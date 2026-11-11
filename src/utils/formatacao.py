@@ -51,6 +51,14 @@ def ler_data(texto):
         raise ValueError("Informe a data no formato dd/mm/aaaa.")
 
 
+def ler_hora(texto):
+    """Converte 'hh:mm' em time. Levanta ValueError se for inválida."""
+    try:
+        return datetime.strptime((texto or "").strip(), "%H:%M").time()
+    except ValueError:
+        raise ValueError("Informe a hora no formato hh:mm.")
+
+
 def apenas_digitos(texto):
     """Remove tudo que não for número: '(86) 99912-3456' -> '86999123456'."""
     return re.sub(r"\D", "", texto or "")
@@ -94,3 +102,9 @@ def mascara_data(texto):
     if len(d) > 4:
         saida += "/" + d[4:8]
     return saida
+
+
+def mascara_hora(texto):
+    """'0830' -> '08:30' (aplicada enquanto a pessoa digita)."""
+    d = apenas_digitos(texto)[:4]
+    return d[:2] + (":" + d[2:4] if len(d) > 2 else "")
