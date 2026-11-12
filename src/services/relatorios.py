@@ -1,5 +1,5 @@
 """Cálculos dos relatórios (funções puras)."""
-from datetime import timedelta
+from datetime import time, timedelta
 
 from src.services.erros import ErroNegocio
 from src.utils.constantes import (GRANULARIDADE_DIA, GRANULARIDADE_MES, GRANULARIDADE_SEMANA,
@@ -99,16 +99,149 @@ def resumo_periodo(reservas, quartos, inicio, fim):
     return _resumir(ocupacao_por_dia(reservas, quartos, inicio, fim), reservas, inicio, fim)
 
 
-def relatorio_periodo(reservas, quartos, inicio, fim):
+def _faixa_do_bloqueio(bloqueio, inicio, fim):
+    """Posições (primeiro, último+1) dos dias do período que o bloqueio toca, ou None.
+
+    Mesma regra de bloqueio_regras: o bloqueio toca a noite do dia D se começa antes do fim
+    de D e termina depois do começo de D. Um bloqueio que termina às 00:00 não toca esse dia.
+    """
+    primeiro_dia = bloqueio.inicio.date()
+    ultimo_dia = bloqueio.fim.date()
+    if bloqueio.fim.time() == time.min:
+        ultimo_dia -= timedelta(days=1)
+    primeiro = (max(primeiro_dia, inicio) - inicio).days
+    ultimo_mais_um = (min(ultimo_dia, fim) - inicio).days + 1
+    return (primeiro, ultimo_mais_um) if primeiro < ultimo_mais_um else None
+
+
+def _marcar(variacao, faixa):
+    if faixa:
+        variacao[faixa[0]] += 1
+        variacao[faixa[1]] -= 1
+
+
+def ocupacao_detalhada(reservas, quartos, bloqueios, inicio, fim):
+    """Ocupação de cada quarto no período, considerando reservas e bloqueios.
+
+    Cada quarto, em cada dia, está em uma de três situações: ocupado (tem reserva ativa),
+    bloqueado (bloqueio no dia, sem reserva) ou disponível. Se o dia tem reserva e bloqueio
+    ao mesmo tempo, conta como ocupado. Reservas e bloqueios vêm já filtrados para o período
+    (ou não: o que estiver fora é recortado). Custo: reservas + bloqueios + quartos x dias.
+
+    Devolve um dicionário:
+      "quartos": uma linha por quarto (ordem de número) com numero, tipo, noites_ocupadas,
+                 noites_bloqueadas, noites_disponiveis, percentual_ocupacao (ocupadas sobre
+                 as noites não bloqueadas) e receita (valor da reserva dividido pelas noites
+                 dela, vezes as noites dentro do período);
+      "dias":    lista de (dia, quartos ocupados, quartos bloqueados);
+      "totais":  somas, taxa_ocupacao e a média por dia de quartos ocupados/disponíveis/bloqueados.
+    """
+    total_dias = (fim - inicio).days + 1
+    if total_dias <= 0:
+        return {"quartos": [], "dias": [], "totais": _totais_vazios()}
+    depois_do_fim = fim + timedelta(days=1)
+    por_id = {q.id: q for q in quartos}
+    reservas_q = {q.id: [0] * (total_dias + 1) for q in quartos}
+    bloqueios_q = {q.id: [0] * (total_dias + 1) for q in quartos}
+    receita = {q.id: 0.0 for q in quartos}
+
+    for r in _ativas(reservas):
+        if r.quarto_id not in por_id:
+            continue
+        primeiro = (max(r.data_entrada, inicio) - inicio).days
+        ultimo_mais_um = (min(r.data_saida, depois_do_fim) - inicio).days
+        if primeiro >= ultimo_mais_um:
+            continue
+        _marcar(reservas_q[r.quarto_id], (primeiro, ultimo_mais_um))
+        noites_reserva = (r.data_saida - r.data_entrada).days
+        if noites_reserva > 0:
+            receita[r.quarto_id] += r.valor_total * (ultimo_mais_um - primeiro) / noites_reserva
+    for b in bloqueios:
+        if b.quarto_id in por_id:
+            _marcar(bloqueios_q[b.quarto_id], _faixa_do_bloqueio(b, inicio, fim))
+
+    ocupados_dia = [0] * total_dias
+    bloqueados_dia = [0] * total_dias
+    linhas = []
+    for q in sorted(quartos, key=lambda q: q.numero):
+        ocupadas = bloqueadas = 0
+        com_reserva = com_bloqueio = 0
+        for i in range(total_dias):
+            com_reserva += reservas_q[q.id][i]
+            com_bloqueio += bloqueios_q[q.id][i]
+            if com_reserva > 0:
+                ocupadas += 1
+                ocupados_dia[i] += 1
+            elif com_bloqueio > 0:
+                bloqueadas += 1
+                bloqueados_dia[i] += 1
+        uteis = total_dias - bloqueadas
+        linhas.append({
+            "quarto_id": q.id, "numero": q.numero, "tipo": q.tipo,
+            "noites_ocupadas": ocupadas, "noites_bloqueadas": bloqueadas,
+            "noites_disponiveis": total_dias - ocupadas - bloqueadas,
+            "percentual_ocupacao": ocupadas / uteis * 100 if uteis else 0.0,
+            "receita": receita[q.id],
+        })
+
+    dias = [(inicio + timedelta(days=i), ocupados_dia[i], bloqueados_dia[i])
+            for i in range(total_dias)]
+    ocupadas = sum(l["noites_ocupadas"] for l in linhas)
+    bloqueadas = sum(l["noites_bloqueadas"] for l in linhas)
+    total_noites = len(linhas) * total_dias
+    uteis = total_noites - bloqueadas
+    totais = {
+        "dias": total_dias,
+        "noites_total": total_noites,
+        "noites_ocupadas": ocupadas,
+        "noites_bloqueadas": bloqueadas,
+        "noites_disponiveis": total_noites - ocupadas - bloqueadas,
+        "taxa_ocupacao": ocupadas / uteis * 100 if uteis else 0.0,
+        "receita": sum(l["receita"] for l in linhas),
+        "media_ocupados": ocupadas / total_dias,
+        "media_disponiveis": (total_noites - ocupadas - bloqueadas) / total_dias,
+        "media_bloqueados": bloqueadas / total_dias,
+    }
+    return {"quartos": linhas, "dias": dias, "totais": totais}
+
+
+def _totais_vazios():
+    chaves = ("dias", "noites_total", "noites_ocupadas", "noites_bloqueadas", "noites_disponiveis",
+              "taxa_ocupacao", "receita", "media_ocupados", "media_disponiveis", "media_bloqueados")
+    return dict.fromkeys(chaves, 0)
+
+
+def _ocupacao_dos_dias(dias, total_quartos):
+    """[(dia, %)] a partir de (dia, ocupados, bloqueados): bloqueado sai do que pode ser ocupado."""
+    resultado = []
+    for dia, ocupados, bloqueados in dias:
+        uteis = total_quartos - bloqueados
+        resultado.append((dia, min(100.0, ocupados / uteis * 100) if uteis > 0 else 0.0))
+    return resultado
+
+
+def relatorio_periodo(reservas, quartos, inicio, fim, bloqueios=None):
     """Tudo que a tela de relatórios mostra, calculado de uma vez.
 
     Valida o período e devolve o resumo (taxa_ocupacao, faturamento, reservas, ticket_medio)
-    mais "granularidade" e "barras" para o gráfico. A ocupação diária é calculada uma só vez.
+    mais "granularidade" e "barras" para o gráfico.
+
+    Com a lista de bloqueios (pode ser vazia), a ocupação passa a considerar a disponibilidade
+    histórica: quarto bloqueado no dia não entra na base do percentual, e o resultado traz
+    também "quartos" (indicadores por quarto) e "totais". Sem ela (None), o cálculo é o antigo.
     """
     validar_periodo(inicio, fim)
-    dias = ocupacao_por_dia(reservas, quartos, inicio, fim)
+    if bloqueios is None:
+        dias = ocupacao_por_dia(reservas, quartos, inicio, fim)
+        resumo = _resumir(dias, reservas, inicio, fim)
+    else:
+        detalhe = ocupacao_detalhada(reservas, quartos, bloqueios, inicio, fim)
+        dias = _ocupacao_dos_dias(detalhe["dias"], len(quartos))
+        resumo = _resumir(dias, reservas, inicio, fim)
+        resumo["taxa_ocupacao"] = detalhe["totais"]["taxa_ocupacao"]
+        resumo["quartos"] = detalhe["quartos"]
+        resumo["totais"] = detalhe["totais"]
     granularidade = escolher_granularidade(len(dias))
-    resumo = _resumir(dias, reservas, inicio, fim)
     resumo["granularidade"] = granularidade
     resumo["barras"] = agrupar_ocupacao(dias, granularidade)
     return resumo

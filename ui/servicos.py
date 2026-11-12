@@ -9,7 +9,8 @@ from src.services.quarto_service import QuartoService
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
 from src.utils.constantes import PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA, RESERVA_NO_SHOW
-from src.utils.formatacao import formatar_data, formatar_data_hora, formatar_moeda
+from src.utils.formatacao import (formatar_data, formatar_data_hora, formatar_moeda,
+                                    formatar_percentual)
 
 
 class Servicos:
@@ -71,6 +72,23 @@ class Servicos:
             "responsavel": nomes.get(b.usuario_id, "—"),
             "registrado_em": formatar_data_hora(b.criado_em),
         } for b in bloqueios]
+
+    def linhas_ocupacao_quartos(self, resumo):
+        """Converte o resultado de relatorio_periodo (com bloqueios) em linhas para a tabela.
+
+        Uma linha por quarto e, no fim, a linha "Total" com as somas do período.
+        """
+        def formatar(numero, tipo, d):
+            return {"numero": numero, "tipo": tipo,
+                    "ocupadas": d["noites_ocupadas"], "bloqueadas": d["noites_bloqueadas"],
+                    "livres": d["noites_disponiveis"],
+                    "ocupacao": formatar_percentual(d.get("percentual_ocupacao",
+                                                          d.get("taxa_ocupacao", 0))),
+                    "receita": formatar_moeda(d["receita"])}
+        linhas = [formatar(q["numero"], q["tipo"], q) for q in resumo["quartos"]]
+        if linhas:
+            linhas.append(formatar("Total", "", resumo["totais"]))
+        return linhas
 
     def linhas_pagamentos(self, historico):
         """Converte [(Pagamento, nome de quem lançou)] em dicionários para a tabela.

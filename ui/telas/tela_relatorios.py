@@ -13,6 +13,7 @@ from ui.componentes.botoes import botao_primario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
 from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.tabela import Tabela
 from ui.estilos import AZUL, COR_BORDA, COR_CARTAO, COR_TEXTO, COR_TEXTO_SUAVE, FONTE_FAMILIA, fonte
 from ui.telas.tela_base import TelaBase
 from src.utils.formatacao import formatar_data, formatar_moeda, formatar_percentual, ler_data
@@ -29,6 +30,10 @@ LEGENDA_BARRAS = {
                           "(7 dias seguidos, a partir da data indicada).",
     GRANULARIDADE_MES: "Cada barra é a média de ocupação de um mês.",
 }
+
+
+# relatórios que o seletor oferece -> qual quadro mostrar
+VISOES = {"Ocupação por dia": "dia", "Ocupação por quarto": "quarto"}
 
 
 class TelaRelatorios(TelaBase):
@@ -55,16 +60,41 @@ class TelaRelatorios(TelaBase):
         cartoes = ctk.CTkFrame(self.corpo, fg_color="transparent")
         cartoes.pack(fill="x", pady=(16, 0))
         self.cartoes = {}
-        for i, nome in enumerate(["Taxa de ocupação", "Faturamento",
-                                  "Reservas no período", "Ticket médio"]):
-            cartoes.grid_columnconfigure(i, weight=1, uniform="resumo")
-            cartao = CartaoResumo(cartoes, nome, "—")
-            cartao.grid(row=0, column=i, sticky="ew",
-                        padx=(0 if i == 0 else 8, 0 if i == 3 else 8))
-            self.cartoes[nome] = cartao
+        # linha 1: resumo financeiro e de ocupação; linha 2: quartos ocupados/disponíveis/bloqueados
+        for linha_cartoes, nomes in enumerate([
+                ["Taxa de ocupação", "Faturamento", "Reservas no período", "Ticket médio"],
+                ["Quartos ocupados (média/dia)", "Quartos disponíveis (média/dia)",
+                 "Quartos bloqueados (média/dia)"]]):
+            for i, nome in enumerate(nomes):
+                cartoes.grid_columnconfigure(i, weight=1, uniform="resumo")
+                cartao = CartaoResumo(cartoes, nome, "—")
+                cartao.grid(row=linha_cartoes, column=i, sticky="ew",
+                            padx=(0 if i == 0 else 8, 0 if i == len(nomes) - 1 else 8),
+                            pady=(0 if linha_cartoes == 0 else 12, 0))
+                self.cartoes[nome] = cartao
 
-        grafico = Cartao(self.corpo, "Ocupação por dia")
-        grafico.pack(fill="both", expand=True, pady=(16, 0))
+        # o gráfico e a tabela por quarto dividem o mesmo espaço; um seletor escolhe qual ver
+        seletor = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        seletor.pack(fill="x", pady=(16, 0))
+        self.visao = CampoSelecao(seletor, "Relatório", list(VISOES), self._trocar_visao)
+        self.visao.caixa.configure(width=280)
+        self.visao.pack(anchor="w")
+        area = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        area.pack(fill="both", expand=True, pady=(8, 0))
+        grafico = Cartao(area, "Ocupação por dia")
+        quartos = Cartao(area, "Ocupação por quarto")
+        self._visoes = {"dia": grafico, "quarto": quartos}
+        self.tabela_quartos = Tabela(quartos, [
+            ("Quarto", "numero", 90), ("Tipo", "tipo", 120),
+            ("Noites ocupadas", "ocupadas", 150), ("Noites bloqueadas", "bloqueadas", 160),
+            ("Noites livres", "livres", 130), ("Ocupação", "ocupacao", 110),
+            ("Receita", "receita", 140)], altura=230)
+        self.tabela_quartos.pack(fill="both", expand=True, padx=10, pady=(6, 4))
+        ctk.CTkLabel(quartos, anchor="w", font=fonte(12), text_color=COR_TEXTO_SUAVE,
+                     text="Ocupação = noites ocupadas ÷ noites não bloqueadas. "
+                          "Receita = valor da reserva dividido pelas noites dela, "
+                          "somando só as noites dentro do período."
+                     ).pack(anchor="w", padx=14, pady=(0, 6))
         self.canvas = tk.Canvas(grafico, width=LARGURA_GRAFICO, height=ALTURA_GRAFICO,
                                 bg=COR_CARTAO, highlightthickness=0)
         self.canvas.pack(padx=20, pady=(0, 6))
@@ -72,10 +102,21 @@ class TelaRelatorios(TelaBase):
                                         text_color=COR_TEXTO_SUAVE, anchor="w")
         self.lbl_legenda.pack(anchor="w", padx=20, pady=(0, 14))
 
+        self.visao.definir("Ocupação por dia")
+        self._trocar_visao()
+
         hoje = date.today()
         self.atalho.definir(PERSONALIZADO)
         self.inicio.definir(formatar_data(hoje - timedelta(days=6)))
         self.fim.definir(formatar_data(hoje))
+
+    def _trocar_visao(self):
+        escolhida = VISOES[self.visao.valor()]
+        for chave, quadro in self._visoes.items():
+            if chave == escolhida:
+                quadro.pack(fill="both", expand=True)
+            else:
+                quadro.pack_forget()
 
     def ao_exibir(self):
         self.gerar(silencioso=True)
@@ -97,7 +138,9 @@ class TelaRelatorios(TelaBase):
             # só as reservas que tocam o período vêm do banco (nada de carregar o histórico todo)
             reservas = self.servicos.reservas.listar_para_relatorio(inicio, fim)
             quartos = self.servicos.quartos.listar()
-            resumo = relatorio_periodo(reservas, quartos, inicio, fim)
+            # bloqueios do período: quarto bloqueado não conta como disponível naquele dia
+            bloqueios = self.servicos.bloqueios.historico(periodo_de=inicio, periodo_ate=fim)
+            resumo = relatorio_periodo(reservas, quartos, inicio, fim, bloqueios)
         except (ValueError, ErroNegocio) as erro:      # data inválida, fim < início, longo demais
             if not silencioso:
                 messagebox.showwarning("Período inválido", str(erro))
@@ -107,6 +150,13 @@ class TelaRelatorios(TelaBase):
         self.cartoes["Faturamento"].atualizar(formatar_moeda(resumo["faturamento"]))
         self.cartoes["Reservas no período"].atualizar(resumo["reservas"])
         self.cartoes["Ticket médio"].atualizar(formatar_moeda(resumo["ticket_medio"]))
+        totais = resumo["totais"]
+        self.cartoes["Quartos ocupados (média/dia)"].atualizar(f"{totais['media_ocupados']:.1f}")
+        self.cartoes["Quartos disponíveis (média/dia)"].atualizar(
+            f"{totais['media_disponiveis']:.1f}")
+        self.cartoes["Quartos bloqueados (média/dia)"].atualizar(
+            f"{totais['media_bloqueados']:.1f}")
+        self.tabela_quartos.carregar(self.servicos.linhas_ocupacao_quartos(resumo))
         self.lbl_legenda.configure(text=LEGENDA_BARRAS[resumo["granularidade"]])
         self._desenhar(resumo["barras"], resumo["granularidade"])
 
