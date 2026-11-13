@@ -38,6 +38,14 @@ FORMAS_PAGAMENTO = ["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débit
 PAGAMENTO_NORMAL = "Pagamento"
 PAGAMENTO_REEMBOLSO = "Reembolso"
 
+# Caixa: cada movimentação é uma entrada ou uma saída, vinda de um pagamento, reembolso ou despesa
+CAIXA_ENTRADA = "Entrada"
+CAIXA_SAIDA = "Saída"
+CAIXA_TODAS = "Todas"
+ORIGEM_PAGAMENTO = PAGAMENTO_NORMAL
+ORIGEM_REEMBOLSO = PAGAMENTO_REEMBOLSO
+ORIGEM_DESPESA = "Despesa"
+
 PAGTO_PENDENTE = "Pendente"    # nada pago
 PAGTO_PARCIAL = "Parcial"      # pagou parte, ainda deve
 PAGTO_PAGO = "Pago"            # quitada

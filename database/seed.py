@@ -16,6 +16,8 @@ from src.repositories.usuario_repository import UsuarioRepository
 from src.repositories.bloqueio_quarto_repository import BloqueioQuartoRepository
 from src.repositories.hospede_repository import HospedeRepository
 from src.repositories.quarto_repository import QuartoRepository
+from src.models.caixa import SaldoInicial
+from src.repositories.caixa_repository import CaixaRepository
 from src.repositories.categoria_despesa_repository import CategoriaDespesaRepository
 from src.repositories.despesa_repository import DespesaRepository
 from src.repositories.pagamento_repository import PagamentoRepository
@@ -108,6 +110,8 @@ BLOQUEIOS = [  # quarto, dias até o início, hora, dias até o término, hora, 
     ("204", -3, "08:00", 4, "18:00", "gerente", "Reforma do banheiro"),                 # em andamento
     ("101", 20, "08:00", 22, "18:00", "gerente", "Dedetização e pintura do quarto"),    # agendado
 ]
+
+SALDO_INICIAL_CAIXA = 15000.00   # vale desde 60 dias atrás, antes da primeira despesa de exemplo
 
 DESPESAS = [  # dias atrás, categoria, descrição, valor, quem lançou
     (58, "Salários", "Folha de pagamento — setembro", 4200.00, "gerente"),
@@ -229,6 +233,11 @@ def popular():
             data=dia, descricao=descricao, valor=valor, categoria_id=categorias[categoria],
             usuario_id=repo_u.buscar_por_usuario(quem).id,
             criada_em=datetime.combine(dia, time(9, 0))))
+    # saldo inicial do caixa: o que a pousada tinha no começo do período dos exemplos
+    CaixaRepository().definir_saldo_inicial(SaldoInicial(
+        valor=SALDO_INICIAL_CAIXA, data_referencia=hoje - timedelta(days=60),
+        usuario_id=repo_u.buscar_por_usuario("admin").id,
+        definido_em=datetime.combine(hoje - timedelta(days=60), time(8, 0))))
     print(f"Banco populado: {len(hospedes)} hóspedes, {len(quartos)} quartos, "
           f"{len(RESERVAS)} reservas, {len(PAGAMENTOS)} pagamentos, {len(REEMBOLSOS)} reembolso(s), "
           f"{len(BLOQUEIOS)} bloqueios, {len(DESPESAS)} despesas e {len(USUARIOS)} usuários.")

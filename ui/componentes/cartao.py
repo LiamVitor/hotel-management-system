@@ -24,5 +24,8 @@ class CartaoResumo(Cartao):
         self._valor = ctk.CTkLabel(self, text=valor, font=fonte(28, True), text_color=cor_valor)
         self._valor.pack(anchor="w", padx=20, pady=(2, 16))
 
-    def atualizar(self, valor):
+    def atualizar(self, valor, cor=None):
+        """Troca o número; cor (opcional) muda também a cor dele."""
         self._valor.configure(text=str(valor))
+        if cor is not None:
+            self._valor.configure(text_color=cor)

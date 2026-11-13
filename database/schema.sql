@@ -146,3 +146,30 @@ CREATE INDEX IF NOT EXISTS idx_bloqueios_quarto ON bloqueios_quarto (quarto_id, 
 
 -- Relatórios e consultas por período buscam as reservas que tocam um intervalo de datas
 CREATE INDEX IF NOT EXISTS idx_reservas_periodo ON reservas (data_entrada, data_saida);
+
+-- Caixa: o extrato (entradas e saídas) é calculado a partir de pagamentos, reembolsos e
+-- despesas, então só o saldo inicial precisa de tabela própria. Cada linha é uma configuração
+-- do saldo inicial: vale o saldo que o caixa tinha no começo de "data_referencia"; a mais
+-- recente é a vigente e as anteriores ficam como histórico (não se altera nem se apaga).
+CREATE TABLE IF NOT EXISTS caixa_saldo_inicial (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    valor            REAL NOT NULL CHECK (valor >= 0),
+    data_referencia  TEXT NOT NULL,                  -- 'AAAA-MM-DD'
+    usuario_id       INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    definido_em      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_caixa_saldo_inicial_nao_excluir
+BEFORE DELETE ON caixa_saldo_inicial
+BEGIN
+    SELECT RAISE(ABORT, 'O histórico do saldo inicial não pode ser excluído.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_caixa_saldo_inicial_nao_alterar
+BEFORE UPDATE ON caixa_saldo_inicial
+BEGIN
+    SELECT RAISE(ABORT, 'O histórico do saldo inicial não pode ser alterado.');
+END;
+
+-- O extrato do caixa busca pagamentos e reembolsos por data
+CREATE INDEX IF NOT EXISTS idx_pagamentos_data_hora ON pagamentos (data_hora);

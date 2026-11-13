@@ -6,6 +6,7 @@ from ui.componentes.janela_senha import JanelaAlterarSenha
 from ui.componentes.menu_lateral import MenuLateral, itens_permitidos
 from ui.servicos import Servicos
 from ui.estilos import COR_FUNDO, configurar_tema
+from ui.telas.tela_caixa import TelaCaixa
 from ui.telas.tela_checkin_checkout import TelaCheckinCheckout
 from ui.telas.tela_despesas import TelaDespesas
 from ui.telas.tela_hospedes import TelaHospedes
@@ -22,6 +23,7 @@ CLASSES_DAS_TELAS = {
     "Reservas": TelaReservas,
     "Check-in / Check-out": TelaCheckinCheckout,
     "Despesas": TelaDespesas,
+    "Caixa": TelaCaixa,
     "Relatórios": TelaRelatorios,
     "Usuários": TelaUsuarios,
 }

@@ -1,6 +1,7 @@
 """Reúne os services usados pelas telas e prepara linhas para as tabelas."""
 from src.models.pagamento import Pagamento
 from src.services.bloqueio_quarto_service import BloqueioQuartoService
+from src.services.caixa_service import CaixaService
 from src.services.despesa_service import DespesaService
 from src.services.hospede_service import HospedeService
 from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
@@ -8,7 +9,8 @@ from src.services.pagamento_service import PagamentoService
 from src.services.quarto_service import QuartoService
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
-from src.utils.constantes import PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA, RESERVA_NO_SHOW
+from src.utils.constantes import (CAIXA_ENTRADA, ORIGEM_DESPESA, PAGAMENTO_REEMBOLSO,
+                                  RESERVA_CANCELADA, RESERVA_NO_SHOW)
 from src.utils.formatacao import (formatar_data, formatar_data_hora, formatar_moeda,
                                     formatar_percentual)
 
@@ -21,6 +23,7 @@ class Servicos:
         self.reservas = ReservaService()
         self.pagamentos = PagamentoService()
         self.despesas = DespesaService()
+        self.caixa = CaixaService()
         self.usuarios = UsuarioService()
 
     def linhas_reservas(self, reservas):
@@ -89,6 +92,23 @@ class Servicos:
         if linhas:
             linhas.append(formatar("Total", "", resumo["totais"]))
         return linhas
+
+    def linhas_caixa(self, movimentacoes):
+        """Converte movimentações do caixa em dicionários prontos para a tabela.
+
+        Saídas aparecem com sinal de menos; "saldo" é o do caixa logo depois da movimentação.
+        """
+        return [{
+            "data_hora": formatar_data_hora(m.data_hora) if m.origem != ORIGEM_DESPESA
+                         else formatar_data(m.data_hora),
+            "tipo": m.tipo,
+            "origem": m.origem,
+            "descricao": m.descricao,
+            "responsavel": m.responsavel or "—",
+            "valor": (formatar_moeda(m.valor) if m.tipo == CAIXA_ENTRADA
+                      else "− " + formatar_moeda(m.valor)),
+            "saldo": formatar_moeda(m.saldo_apos),
+        } for m in movimentacoes]
 
     def linhas_pagamentos(self, historico):
         """Converte [(Pagamento, nome de quem lançou)] em dicionários para a tabela.

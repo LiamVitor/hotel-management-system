@@ -12,6 +12,7 @@ ITENS_MENU = [
     ("Reservas", "reservas.ver"),
     ("Check-in / Check-out", "reservas.checkin"),
     ("Despesas", "despesas.gerenciar"),
+    ("Caixa", "caixa.ver"),
     ("Relatórios", "relatorios.ver"),
     ("Usuários", "usuarios.gerenciar"),
 ]

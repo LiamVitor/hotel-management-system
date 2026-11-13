@@ -28,6 +28,7 @@ _GERENCIA = _RECEPCAO | {
     "reservas.cancelar",
     "pagamentos.reembolsar",
     "despesas.gerenciar",
+    "caixa.ver", "caixa.configurar",
     "relatorios.ver",
 }
 _ADMINISTRACAO = _GERENCIA | {"usuarios.gerenciar"}
