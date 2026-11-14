@@ -5,6 +5,7 @@ from src.models.pagamento import Pagamento
 from src.services.bloqueio_quarto_service import BloqueioQuartoService
 from src.services.caixa_service import CaixaService
 from src.services.conta_receber_service import ContaReceberService
+from src.services.demonstrativo_service import DemonstrativoFinanceiroService
 from src.services.despesa_service import DespesaService
 from src.services.historico_hospedagem_service import HistoricoHospedagemService
 from src.services.hospede_service import HospedeService
@@ -13,8 +14,9 @@ from src.services.pagamento_service import PagamentoService
 from src.services.quarto_service import QuartoService
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
-from src.utils.constantes import (CAIXA_ENTRADA, CONTA_A_VENCER, CONTA_VENCIDA, ORIGEM_DESPESA, PAGAMENTO_REEMBOLSO,
-                                  RESERVA_CANCELADA, RESERVA_NO_SHOW)
+from src.utils.constantes import (CAIXA_ENTRADA, CONTA_A_VENCER, CONTA_VENCIDA,
+                                  GRANULARIDADE_DIA, GRANULARIDADE_MES, ORIGEM_DESPESA,
+                                  PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA, RESERVA_NO_SHOW)
 from src.utils.formatacao import (formatar_data, formatar_data_hora, formatar_moeda,
                                     formatar_percentual)
 
@@ -29,6 +31,7 @@ class Servicos:
         self.despesas = DespesaService()
         self.caixa = CaixaService()
         self.contas_receber = ContaReceberService()
+        self.demonstrativo = DemonstrativoFinanceiroService()
         self.historico_hospedagem = HistoricoHospedagemService()
         self.usuarios = UsuarioService()
 
@@ -149,6 +152,23 @@ class Servicos:
                       else "− " + formatar_moeda(m.valor)),
             "saldo": formatar_moeda(m.saldo_apos),
         } for m in movimentacoes]
+
+    def linhas_fluxo_caixa(self, fluxo, granularidade):
+        """Converte o fluxo de caixa (FluxoPeriodo) em dicionários prontos para a tabela."""
+        def periodo(f):
+            if granularidade == GRANULARIDADE_DIA:
+                return formatar_data(f.inicio)
+            if granularidade == GRANULARIDADE_MES:
+                return f"{f.inicio:%m/%Y}"
+            return f"{f.inicio:%d/%m} a {f.fim:%d/%m/%Y}"
+        return [{
+            "periodo": periodo(f),
+            "entradas": formatar_moeda(f.entradas),
+            "despesas": formatar_moeda(f.despesas),
+            "reembolsos": formatar_moeda(f.reembolsos),
+            "variacao": ("+ " if f.variacao >= 0 else "− ") + formatar_moeda(abs(f.variacao)),
+            "saldo": formatar_moeda(f.saldo_final),
+        } for f in fluxo]
 
     def linhas_pagamentos(self, historico):
         """Converte [(Pagamento, nome de quem lançou)] em dicionários para a tabela.

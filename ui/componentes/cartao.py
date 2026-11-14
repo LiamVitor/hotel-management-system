@@ -17,11 +17,11 @@ class Cartao(ctk.CTkFrame):
 class CartaoResumo(Cartao):
     """Cartão com um título pequeno e um número grande."""
 
-    def __init__(self, master, titulo, valor="0", cor_valor=COR_TEXTO):
+    def __init__(self, master, titulo, valor="0", cor_valor=COR_TEXTO, tamanho_valor=28):
         super().__init__(master)
         ctk.CTkLabel(self, text=titulo, font=fonte(13), text_color=COR_TEXTO_SUAVE
                      ).pack(anchor="w", padx=20, pady=(16, 0))
-        self._valor = ctk.CTkLabel(self, text=valor, font=fonte(28, True), text_color=cor_valor)
+        self._valor = ctk.CTkLabel(self, text=valor, font=fonte(tamanho_valor, True), text_color=cor_valor)
         self._valor.pack(anchor="w", padx=20, pady=(2, 16))
 
     def atualizar(self, valor, cor=None):

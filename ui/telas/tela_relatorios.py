@@ -14,6 +14,7 @@ from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
 from ui.componentes.cartao import Cartao, CartaoResumo
 from ui.componentes.painel_contas_receber import PainelContasReceber
+from ui.componentes.painel_demonstrativo import PainelDemonstrativo
 from ui.componentes.tabela import Tabela
 from ui.estilos import AZUL, COR_BORDA, COR_CARTAO, COR_TEXTO, COR_TEXTO_SUAVE, FONTE_FAMILIA, fonte
 from ui.telas.tela_base import TelaBase
@@ -35,7 +36,7 @@ LEGENDA_BARRAS = {
 
 # relatórios que o seletor oferece -> qual quadro mostrar
 VISOES = {"Ocupação por dia": "dia", "Ocupação por quarto": "quarto",
-          "Contas a receber": "contas"}
+          "Contas a receber": "contas", "Demonstrativo financeiro": "demonstrativo"}
 
 
 class TelaRelatorios(TelaBase):
@@ -53,6 +54,10 @@ class TelaRelatorios(TelaBase):
         self.painel_ocupacao = ctk.CTkFrame(self.corpo, fg_color="transparent")
         self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
         self.painel_contas = PainelContasReceber(self.corpo, self.servicos)
+        self.painel_demonstrativo = PainelDemonstrativo(self.corpo, self.servicos)
+        # relatórios que têm painel próprio (os demais usam o painel de ocupação)
+        self._paineis = {"contas": self.painel_contas,
+                         "demonstrativo": self.painel_demonstrativo}
 
         filtro = Cartao(self.painel_ocupacao, "Período")
         filtro.pack(fill="x")
@@ -119,12 +124,13 @@ class TelaRelatorios(TelaBase):
 
     def _trocar_visao(self):
         escolhida = VISOES[self.visao.valor()]
-        if escolhida == "contas":
+        for painel in self._paineis.values():
+            painel.pack_forget()
+        if escolhida in self._paineis:
             self.painel_ocupacao.pack_forget()
-            self.painel_contas.pack(fill="both", expand=True, pady=(12, 0))
-            self.painel_contas.atualizar(silencioso=True)
+            self._paineis[escolhida].pack(fill="both", expand=True, pady=(12, 0))
+            self._paineis[escolhida].atualizar(silencioso=True)
             return
-        self.painel_contas.pack_forget()
         self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
         for chave, quadro in self._visoes.items():
             if chave == escolhida:
@@ -134,8 +140,9 @@ class TelaRelatorios(TelaBase):
 
     def ao_exibir(self):
         self.gerar(silencioso=True)
-        if VISOES[self.visao.valor()] == "contas":
-            self.painel_contas.atualizar(silencioso=True)
+        painel = self._paineis.get(VISOES[self.visao.valor()])
+        if painel is not None:
+            painel.atualizar(silencioso=True)
 
     def _ao_digitar_periodo(self):
         self.atalho.definir(PERSONALIZADO)
