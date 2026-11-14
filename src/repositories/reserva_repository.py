@@ -36,6 +36,10 @@ class ReservaRepository:
             cancelamento_motivo=linha["cancelamento_motivo"],
             noshow_em=_data_hora(linha["noshow_em"]),
             noshow_por=linha["noshow_por"],
+            data_vencimento=(date.fromisoformat(linha["data_vencimento"])
+                             if linha["data_vencimento"] else date.fromisoformat(linha["data_entrada"])),
+            vencimento_alterado_em=_data_hora(linha["vencimento_alterado_em"]),
+            vencimento_alterado_por=linha["vencimento_alterado_por"],
         )
 
     def _para_objetos(self, linhas):
@@ -45,13 +49,17 @@ class ReservaRepository:
         # toda reserva guarda quando foi criada: se quem chamou não informou, é agora
         if reserva.criada_em is None:
             reserva.criada_em = datetime.now().replace(microsecond=0)
+        # sem vencimento informado, a reserva vence na data de entrada
+        if reserva.data_vencimento is None:
+            reserva.data_vencimento = reserva.data_entrada
         reserva.id = inserir(
             """INSERT INTO reservas
                (hospede_id, quarto_id, data_entrada, data_saida,
                 valor_diaria, valor_total, situacao, criada_em,
                 checkin_em, checkin_por, checkout_em, checkout_por,
-                cancelada_em, cancelada_por, cancelamento_motivo, noshow_em, noshow_por)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                cancelada_em, cancelada_por, cancelamento_motivo, noshow_em, noshow_por,
+                data_vencimento, vencimento_alterado_em, vencimento_alterado_por)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 reserva.hospede_id,
                 reserva.quarto_id,
@@ -70,6 +78,10 @@ class ReservaRepository:
                 reserva.cancelamento_motivo,
                 reserva.noshow_em.isoformat(**FORMATO_DATA_HORA) if reserva.noshow_em else None,
                 reserva.noshow_por,
+                reserva.data_vencimento.isoformat(),
+                reserva.vencimento_alterado_em.isoformat(**FORMATO_DATA_HORA)
+                if reserva.vencimento_alterado_em else None,
+                reserva.vencimento_alterado_por,
             ),
             conexao=conexao,
         )
@@ -187,6 +199,21 @@ class ReservaRepository:
                WHERE id = ? AND situacao = ?""",
             (RESERVA_CANCELADA, quando.isoformat(**FORMATO_DATA_HORA), usuario_id, motivo,
              reserva_id, RESERVA_CONFIRMADA),
+            conexao=conexao,
+        )
+        return afetadas > 0
+
+    def registrar_vencimento(self, reserva_id, data_vencimento, quando, usuario_id, conexao=None):
+        """Grava a nova data de vencimento e quem/quando alterou.
+
+        Não age em reserva cancelada ou de no-show (não há o que cobrar); devolve False então.
+        """
+        afetadas = executar(
+            """UPDATE reservas
+               SET data_vencimento = ?, vencimento_alterado_em = ?, vencimento_alterado_por = ?
+               WHERE id = ? AND situacao NOT IN (?, ?)""",
+            (data_vencimento.isoformat(), quando.isoformat(**FORMATO_DATA_HORA), usuario_id,
+             reserva_id, RESERVA_CANCELADA, RESERVA_NO_SHOW),
             conexao=conexao,
         )
         return afetadas > 0

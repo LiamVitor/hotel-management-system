@@ -86,6 +86,13 @@ NO_SHOWS = {
     11: (-2, "09:00", "recepcao"),    # marcado na manhã seguinte à data de entrada
 }
 
+# Vencimento combinado de algumas reservas (as demais vencem na data de entrada):
+# posição em RESERVAS -> (dias a partir de hoje, quem definiu)
+VENCIMENTOS = {
+    4: (1, "gerente"),     # sinal pago; o restante fica combinado para o dia seguinte
+    5: (-4, "recepcao"),   # finalizada, quitada
+}
+
 PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta), forma, dias a partir de hoje, hora
     (0, 0.3, "PIX", -1, "10:15"),                # sinal de uma reserva confirmada
     (1, 0.5, "PIX", -2, "14:05"),                # hospedado, pagou metade
@@ -181,6 +188,12 @@ def popular():
             reais.update(noshow_em=datetime.combine(hoje + timedelta(days=dias),
                                                     time.fromisoformat(hora)),
                          noshow_por=repo_u.buscar_por_usuario(quem).id)
+        if indice in VENCIMENTOS:
+            dias, quem = VENCIMENTOS[indice]
+            reais.update(data_vencimento=hoje + timedelta(days=dias),
+                         vencimento_alterado_em=datetime.combine(min(entrada, hoje)
+                                                                 - timedelta(days=4), time(11, 0)),
+                         vencimento_alterado_por=repo_u.buscar_por_usuario(quem).id)
         reservas.append(repo_r.criar(Reserva(
             hospede_id=hospedes[pos].id, quarto_id=quarto.id,
             data_entrada=entrada, data_saida=saida,

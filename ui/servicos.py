@@ -1,7 +1,10 @@
 """Reúne os services usados pelas telas e prepara linhas para as tabelas."""
+from datetime import date
+
 from src.models.pagamento import Pagamento
 from src.services.bloqueio_quarto_service import BloqueioQuartoService
 from src.services.caixa_service import CaixaService
+from src.services.conta_receber_service import ContaReceberService
 from src.services.despesa_service import DespesaService
 from src.services.hospede_service import HospedeService
 from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
@@ -9,7 +12,7 @@ from src.services.pagamento_service import PagamentoService
 from src.services.quarto_service import QuartoService
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
-from src.utils.constantes import (CAIXA_ENTRADA, ORIGEM_DESPESA, PAGAMENTO_REEMBOLSO,
+from src.utils.constantes import (CAIXA_ENTRADA, CONTA_A_VENCER, CONTA_VENCIDA, ORIGEM_DESPESA, PAGAMENTO_REEMBOLSO,
                                   RESERVA_CANCELADA, RESERVA_NO_SHOW)
 from src.utils.formatacao import (formatar_data, formatar_data_hora, formatar_moeda,
                                     formatar_percentual)
@@ -24,6 +27,7 @@ class Servicos:
         self.pagamentos = PagamentoService()
         self.despesas = DespesaService()
         self.caixa = CaixaService()
+        self.contas_receber = ContaReceberService()
         self.usuarios = UsuarioService()
 
     def linhas_reservas(self, reservas):
@@ -92,6 +96,26 @@ class Servicos:
         if linhas:
             linhas.append(formatar("Total", "", resumo["totais"]))
         return linhas
+
+    def linhas_contas_receber(self, contas):
+        """Converte contas a receber em dicionários prontos para a tabela."""
+        def situacao(c):
+            if c.situacao == CONTA_VENCIDA:
+                return f"Vencida há {c.dias_em_atraso} dia{'s' if c.dias_em_atraso != 1 else ''}"
+            if c.situacao == CONTA_A_VENCER and c.dias_em_atraso == 0 and c.data_vencimento == hoje:
+                return "Vence hoje"
+            return c.situacao
+        hoje = date.today()
+        return [{
+            "id": c.reserva_id,
+            "reserva": f"{c.reserva_id:04d}",
+            "hospede": c.hospede,
+            "total": formatar_moeda(c.valor_total),
+            "pago": formatar_moeda(c.valor_pago),
+            "saldo": formatar_moeda(c.saldo),
+            "vencimento": formatar_data(c.data_vencimento),
+            "situacao": situacao(c),
+        } for c in contas]
 
     def linhas_caixa(self, movimentacoes):
         """Converte movimentações do caixa em dicionários prontos para a tabela.

@@ -29,3 +29,7 @@ class Reserva:
     # No-show: quando foi marcado e por quem (id do usuário)
     noshow_em: Optional[datetime] = None
     noshow_por: Optional[int] = None
+    # Contas a receber: data limite para quitar (o repository usa a data de entrada se faltar)
+    data_vencimento: Optional[date] = None
+    vencimento_alterado_em: Optional[datetime] = None
+    vencimento_alterado_por: Optional[int] = None

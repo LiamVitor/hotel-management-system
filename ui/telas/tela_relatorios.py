@@ -13,6 +13,7 @@ from ui.componentes.botoes import botao_primario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
 from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.painel_contas_receber import PainelContasReceber
 from ui.componentes.tabela import Tabela
 from ui.estilos import AZUL, COR_BORDA, COR_CARTAO, COR_TEXTO, COR_TEXTO_SUAVE, FONTE_FAMILIA, fonte
 from ui.telas.tela_base import TelaBase
@@ -33,7 +34,8 @@ LEGENDA_BARRAS = {
 
 
 # relatórios que o seletor oferece -> qual quadro mostrar
-VISOES = {"Ocupação por dia": "dia", "Ocupação por quarto": "quarto"}
+VISOES = {"Ocupação por dia": "dia", "Ocupação por quarto": "quarto",
+          "Contas a receber": "contas"}
 
 
 class TelaRelatorios(TelaBase):
@@ -42,7 +44,17 @@ class TelaRelatorios(TelaBase):
     def __init__(self, master, servicos):
         super().__init__(master, servicos)
 
-        filtro = Cartao(self.corpo, "Período")
+        # o seletor escolhe o relatório; cada um tem o seu painel (filtros, cartões e lista)
+        seletor = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        seletor.pack(fill="x")
+        self.visao = CampoSelecao(seletor, "Relatório", list(VISOES), self._trocar_visao)
+        self.visao.caixa.configure(width=280)
+        self.visao.pack(anchor="w")
+        self.painel_ocupacao = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
+        self.painel_contas = PainelContasReceber(self.corpo, self.servicos)
+
+        filtro = Cartao(self.painel_ocupacao, "Período")
         filtro.pack(fill="x")
         linha = ctk.CTkFrame(filtro, fg_color="transparent")
         linha.pack(fill="x", padx=20, pady=(0, 18))
@@ -57,7 +69,7 @@ class TelaRelatorios(TelaBase):
         botao_primario(linha, "Gerar relatório", self.gerar, 160).grid(
             row=0, column=3, sticky="s", padx=(10, 0))
 
-        cartoes = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        cartoes = ctk.CTkFrame(self.painel_ocupacao, fg_color="transparent")
         cartoes.pack(fill="x", pady=(16, 0))
         self.cartoes = {}
         # linha 1: resumo financeiro e de ocupação; linha 2: quartos ocupados/disponíveis/bloqueados
@@ -73,14 +85,9 @@ class TelaRelatorios(TelaBase):
                             pady=(0 if linha_cartoes == 0 else 12, 0))
                 self.cartoes[nome] = cartao
 
-        # o gráfico e a tabela por quarto dividem o mesmo espaço; um seletor escolhe qual ver
-        seletor = ctk.CTkFrame(self.corpo, fg_color="transparent")
-        seletor.pack(fill="x", pady=(16, 0))
-        self.visao = CampoSelecao(seletor, "Relatório", list(VISOES), self._trocar_visao)
-        self.visao.caixa.configure(width=280)
-        self.visao.pack(anchor="w")
-        area = ctk.CTkFrame(self.corpo, fg_color="transparent")
-        area.pack(fill="both", expand=True, pady=(8, 0))
+        # o gráfico e a tabela por quarto dividem o mesmo espaço (o seletor lá em cima escolhe)
+        area = ctk.CTkFrame(self.painel_ocupacao, fg_color="transparent")
+        area.pack(fill="both", expand=True, pady=(16, 0))
         grafico = Cartao(area, "Ocupação por dia")
         quartos = Cartao(area, "Ocupação por quarto")
         self._visoes = {"dia": grafico, "quarto": quartos}
@@ -112,6 +119,13 @@ class TelaRelatorios(TelaBase):
 
     def _trocar_visao(self):
         escolhida = VISOES[self.visao.valor()]
+        if escolhida == "contas":
+            self.painel_ocupacao.pack_forget()
+            self.painel_contas.pack(fill="both", expand=True, pady=(12, 0))
+            self.painel_contas.atualizar(silencioso=True)
+            return
+        self.painel_contas.pack_forget()
+        self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
         for chave, quadro in self._visoes.items():
             if chave == escolhida:
                 quadro.pack(fill="both", expand=True)
@@ -120,6 +134,8 @@ class TelaRelatorios(TelaBase):
 
     def ao_exibir(self):
         self.gerar(silencioso=True)
+        if VISOES[self.visao.valor()] == "contas":
+            self.painel_contas.atualizar(silencioso=True)
 
     def _ao_digitar_periodo(self):
         self.atalho.definir(PERSONALIZADO)

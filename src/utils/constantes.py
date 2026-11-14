@@ -33,6 +33,19 @@ BLOQUEIO_ENCERRADO = "Encerrado"
 MOTIVO_BLOQUEIO_MIN = 3
 MOTIVO_BLOQUEIO_MAX = 200
 
+# Contas a receber: situação financeira de cada reserva e filtros do relatório
+CONTA_QUITADA = "Quitada"          # nada a receber
+CONTA_A_VENCER = "A vencer"        # falta pagar, mas o vencimento ainda não passou
+CONTA_VENCIDA = "Vencida"          # falta pagar e o vencimento já passou
+CONTAS_EM_ABERTO = "Em aberto"     # a vencer + vencidas
+CONTAS_VENCIDAS = "Vencidas"
+CONTAS_A_VENCER = "A vencer"
+CONTAS_QUITADAS = "Quitadas"
+CONTAS_TODAS = "Todas"
+FILTROS_CONTAS = [CONTAS_EM_ABERTO, CONTAS_VENCIDAS, CONTAS_A_VENCER, CONTAS_QUITADAS,
+                  CONTAS_TODAS]
+VENCIMENTO_MAX_DIAS_APOS_SAIDA = 365   # limite para escolher o vencimento
+
 FORMAS_PAGAMENTO = ["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Transferência"]
 
 PAGAMENTO_NORMAL = "Pagamento"

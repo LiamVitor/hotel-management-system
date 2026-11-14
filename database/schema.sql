@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS reservas (
     -- no-show (situacao = 'Não compareceu'): quando foi marcado e quem marcou
     noshow_em     TEXT,
     noshow_por    INTEGER REFERENCES usuarios(id),
+    -- contas a receber: data limite para quitar a reserva. Se ninguém informar, vale a data
+    -- de entrada. A última alteração manual guarda quando e quem alterou.
+    data_vencimento          TEXT,                     -- 'AAAA-MM-DD'
+    vencimento_alterado_em   TEXT,
+    vencimento_alterado_por  INTEGER REFERENCES usuarios(id),
     CHECK (data_saida > data_entrada)
 );
 
