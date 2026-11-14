@@ -8,6 +8,7 @@ from ui.estilos import AZUL, COR_MENU, COR_MENU_HOVER, VERMELHO, VERMELHO_HOVER,
 ITENS_MENU = [
     ("Início", None),
     ("Hóspedes", "hospedes.ver"),
+    ("Histórico de hospedagem", "hospedes.ver"),
     ("Quartos", "quartos.ver"),
     ("Reservas", "reservas.ver"),
     ("Check-in / Check-out", "reservas.checkin"),

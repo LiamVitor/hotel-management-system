@@ -15,6 +15,7 @@ from ui.componentes.janela_detalhes_reserva import abrir_detalhes
 from ui.componentes.janela_pagamentos import abrir_pagamentos as abrir_janela_pagamentos
 from ui.componentes.janela_reembolso import abrir_reembolso
 from ui.componentes.seletor import CampoSeletor, JanelaSelecao
+from ui.componentes.seletor_hospede import CampoSeletorHospede
 from ui.componentes.tabela import Tabela
 from ui.estilos import (AZUL, COR_BORDA_CAMPO, COR_SELECAO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE,
                         VERMELHO, fonte)
@@ -22,15 +23,12 @@ from ui.telas.tela_base import TelaBase
 from src.utils.constantes import QUARTO_MANUTENCAO, SITUACOES_RESERVA
 from src.utils.filtros import normalizar_texto
 from src.utils.sessao import Sessao
-from src.utils.formatacao import (formatar_cpf, formatar_data, formatar_moeda,
-                                  formatar_telefone, ler_data, mascara_data)
+from src.utils.formatacao import formatar_data, formatar_moeda, ler_data, mascara_data
 
 COLUNAS = [("Código", "codigo", 66), ("Hóspede", "hospede", 190), ("Quarto", "quarto", 62),
            ("Entrada", "entrada", 95), ("Saída", "saida", 95), ("Total", "total", 110),
            ("Status", "situacao", 125), ("Pagamento", "pagamento", 100)]
 
-COLUNAS_SELECAO_HOSPEDE = [("Nome", "nome", 230), ("CPF", "cpf", 130),
-                           ("Telefone", "telefone", 140), ("E-mail", "email", 200)]
 COLUNAS_SELECAO_QUARTO = [("Número", "numero", 90), ("Tipo", "tipo", 130),
                           ("Capacidade", "capacidade", 110), ("Diária", "diaria", 130),
                           ("Status", "situacao", 130)]
@@ -61,8 +59,7 @@ class TelaReservas(TelaBase):
         grade.pack(fill="x", padx=20)
         grade.grid_columnconfigure((0, 1, 2), weight=1, uniform="campos")
 
-        self.hospede = CampoSeletor(grade, "Hóspede", "Clique para pesquisar e escolher o hóspede…",
-                                    self._abrir_selecao_hospede, self.atualizar_resumo)
+        self.hospede = CampoSeletorHospede(grade, self.servicos, ao_mudar=self.atualizar_resumo)
         self.quarto = CampoSeletor(grade, "Quarto", "Clique para pesquisar e escolher o quarto…",
                                    self._abrir_selecao_quarto, self.atualizar_resumo)
         self.num = CampoTexto(grade, "Nº de hóspedes", "1", self.atualizar_resumo)
@@ -178,23 +175,8 @@ class TelaReservas(TelaBase):
 
     # ---------- escolha de hóspede e quarto ----------
     @staticmethod
-    def _texto_hospede(h):
-        return f"{h.nome} — {formatar_cpf(h.cpf)}"
-
-    @staticmethod
     def _texto_quarto(q):
         return f"{q.numero} · {q.tipo} · {formatar_moeda(q.preco_diaria)}/dia"
-
-    def _abrir_selecao_hospede(self, escolher):
-        def buscar(termo, _opcao):
-            return [{"id": h.id, "nome": h.nome, "cpf": formatar_cpf(h.cpf),
-                     "telefone": formatar_telefone(h.telefone), "email": h.email or "",
-                     "texto": self._texto_hospede(h)}
-                    for h in self.servicos.hospedes.listar(termo)]
-
-        JanelaSelecao(self, "Selecionar hóspede", COLUNAS_SELECAO_HOSPEDE, buscar,
-                      lambda linha: escolher(linha["id"], linha["texto"]),
-                      placeholder="Buscar por nome, CPF, telefone ou e-mail")
 
     def _abrir_selecao_quarto(self, escolher):
         periodo = self._periodo_informado()
@@ -251,12 +233,7 @@ class TelaReservas(TelaBase):
 
     def _atualizar_selecoes(self):
         """Se o hóspede/quarto escolhido foi editado ou excluído, atualiza ou limpa."""
-        if self.hospede.valor():
-            h = self.servicos.hospedes.buscar_por_id(self.hospede.valor())
-            if h is None:
-                self.hospede.limpar(notificar=False)
-            else:
-                self.hospede.definir(h.id, self._texto_hospede(h), notificar=False)
+        self.hospede.atualizar()
         if self.quarto.valor():
             q = self.servicos.quartos.buscar_por_id(self.quarto.valor())
             if q is None:

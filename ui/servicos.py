@@ -6,6 +6,7 @@ from src.services.bloqueio_quarto_service import BloqueioQuartoService
 from src.services.caixa_service import CaixaService
 from src.services.conta_receber_service import ContaReceberService
 from src.services.despesa_service import DespesaService
+from src.services.historico_hospedagem_service import HistoricoHospedagemService
 from src.services.hospede_service import HospedeService
 from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
 from src.services.pagamento_service import PagamentoService
@@ -28,6 +29,7 @@ class Servicos:
         self.despesas = DespesaService()
         self.caixa = CaixaService()
         self.contas_receber = ContaReceberService()
+        self.historico_hospedagem = HistoricoHospedagemService()
         self.usuarios = UsuarioService()
 
     def linhas_reservas(self, reservas):
@@ -96,6 +98,20 @@ class Servicos:
         if linhas:
             linhas.append(formatar("Total", "", resumo["totais"]))
         return linhas
+
+    def linhas_historico_hospedagem(self, itens):
+        """Converte o histórico de um hóspede (ItemHistorico) em dicionários para a tabela."""
+        return [{
+            "id": i.reserva_id,
+            "reserva": f"{i.reserva_id:04d}",
+            "quarto": f"{i.quarto} · {i.tipo_quarto}" if i.tipo_quarto else i.quarto,
+            "entrada": formatar_data(i.data_entrada),
+            "saida": formatar_data(i.data_saida),
+            "noites": i.noites,
+            "total": formatar_moeda(i.valor_total),
+            "pago": formatar_moeda(i.valor_pago),
+            "situacao": i.situacao,
+        } for i in itens]
 
     def linhas_contas_receber(self, contas):
         """Converte contas a receber em dicionários prontos para a tabela."""

@@ -9,6 +9,7 @@ from ui.estilos import COR_FUNDO, configurar_tema
 from ui.telas.tela_caixa import TelaCaixa
 from ui.telas.tela_checkin_checkout import TelaCheckinCheckout
 from ui.telas.tela_despesas import TelaDespesas
+from ui.telas.tela_historico_hospedagem import TelaHistoricoHospedagem
 from ui.telas.tela_hospedes import TelaHospedes
 from ui.telas.tela_inicio import TelaInicio
 from ui.telas.tela_quartos import TelaQuartos
@@ -19,6 +20,7 @@ from ui.telas.tela_usuarios import TelaUsuarios
 CLASSES_DAS_TELAS = {
     "Início": TelaInicio,
     "Hóspedes": TelaHospedes,
+    "Histórico de hospedagem": TelaHistoricoHospedagem,
     "Quartos": TelaQuartos,
     "Reservas": TelaReservas,
     "Check-in / Check-out": TelaCheckinCheckout,

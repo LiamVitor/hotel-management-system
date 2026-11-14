@@ -72,3 +72,14 @@ class PagamentoRepository:
                FROM pagamentos GROUP BY reserva_id"""
         )
         return {linha["reserva_id"]: round(linha["total"], 2) for linha in linhas}
+
+    def totais_por_hospede(self, hospede_id):
+        """{reserva_id: total pago} das reservas de um hóspede, já descontando reembolsos."""
+        linhas = consultar_todos(
+            """SELECT p.reserva_id,
+                      SUM(CASE WHEN p.tipo = 'Reembolso' THEN -p.valor ELSE p.valor END) AS total
+               FROM pagamentos p JOIN reservas r ON r.id = p.reserva_id
+               WHERE r.hospede_id = ? GROUP BY p.reserva_id""",
+            (hospede_id,),
+        )
+        return {linha["reserva_id"]: round(linha["total"], 2) for linha in linhas}
