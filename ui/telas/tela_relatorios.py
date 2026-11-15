@@ -16,6 +16,7 @@ from ui.componentes.cartao import Cartao, CartaoResumo
 from ui.componentes.painel_cancelamentos import PainelCancelamentos
 from ui.componentes.painel_contas_receber import PainelContasReceber
 from ui.componentes.painel_demonstrativo import PainelDemonstrativo
+from ui.componentes.painel_receitas import PainelReceitas
 from ui.componentes.tabela import Tabela
 from ui.estilos import AZUL, COR_BORDA, COR_CARTAO, COR_TEXTO, COR_TEXTO_SUAVE, FONTE_FAMILIA, fonte
 from ui.telas.tela_base import TelaBase
@@ -38,7 +39,7 @@ LEGENDA_BARRAS = {
 # relatórios que o seletor oferece -> qual quadro mostrar
 VISOES = {"Ocupação por dia": "dia", "Ocupação por quarto": "quarto",
           "Contas a receber": "contas", "Demonstrativo financeiro": "demonstrativo",
-          "Cancelamentos e no-show": "cancelamentos"}
+          "Demonstrativo de receitas": "receitas", "Cancelamentos e no-show": "cancelamentos"}
 
 
 class TelaRelatorios(TelaBase):
@@ -58,10 +59,12 @@ class TelaRelatorios(TelaBase):
         self.painel_contas = PainelContasReceber(self.corpo, self.servicos)
         self.painel_demonstrativo = PainelDemonstrativo(self.corpo, self.servicos)
         self.painel_cancelamentos = PainelCancelamentos(self.corpo, self.servicos)
+        self.painel_receitas = PainelReceitas(self.corpo, self.servicos)
         # relatórios que têm painel próprio (os demais usam o painel de ocupação)
         self._paineis = {"contas": self.painel_contas,
                          "demonstrativo": self.painel_demonstrativo,
-                         "cancelamentos": self.painel_cancelamentos}
+                         "cancelamentos": self.painel_cancelamentos,
+                         "receitas": self.painel_receitas}
 
         filtro = Cartao(self.painel_ocupacao, "Período")
         filtro.pack(fill="x")
@@ -83,7 +86,7 @@ class TelaRelatorios(TelaBase):
         self.cartoes = {}
         # linha 1: resumo financeiro e de ocupação; linha 2: quartos ocupados/disponíveis/bloqueados
         for linha_cartoes, nomes in enumerate([
-                ["Taxa de ocupação", "Faturamento", "Reservas no período", "Ticket médio"],
+                ["Taxa de ocupação", "Valor reservado", "Reservas no período", "Ticket médio"],
                 ["Quartos ocupados (média/dia)", "Quartos disponíveis (média/dia)",
                  "Quartos bloqueados (média/dia)"]]):
             for i, nome in enumerate(nomes):
@@ -104,12 +107,12 @@ class TelaRelatorios(TelaBase):
             ("Quarto", "numero", 90), ("Tipo", "tipo", 120),
             ("Noites ocupadas", "ocupadas", 150), ("Noites bloqueadas", "bloqueadas", 160),
             ("Noites livres", "livres", 130), ("Ocupação", "ocupacao", 110),
-            ("Receita", "receita", 140)], altura=230)
+            ("Valor reservado", "receita", 140)], altura=230)
         self.tabela_quartos.pack(fill="both", expand=True, padx=10, pady=(6, 4))
         ctk.CTkLabel(quartos, anchor="w", font=fonte(12), text_color=COR_TEXTO_SUAVE,
                      text="Ocupação = noites ocupadas ÷ noites não bloqueadas. "
-                          "Receita = valor da reserva dividido pelas noites dela, "
-                          "somando só as noites dentro do período."
+                          "Valor reservado = valor da reserva dividido pelas noites dela, somando só "
+                          "as noites dentro do período (o recebido está em 'Demonstrativo de receitas')."
                      ).pack(anchor="w", padx=14, pady=(0, 6))
         self.canvas = tk.Canvas(grafico, width=LARGURA_GRAFICO, height=ALTURA_GRAFICO,
                                 bg=COR_CARTAO, highlightthickness=0)
@@ -174,7 +177,7 @@ class TelaRelatorios(TelaBase):
             return
 
         self.cartoes["Taxa de ocupação"].atualizar(formatar_percentual(resumo["taxa_ocupacao"]))
-        self.cartoes["Faturamento"].atualizar(formatar_moeda(resumo["faturamento"]))
+        self.cartoes["Valor reservado"].atualizar(formatar_moeda(resumo["faturamento"]))
         self.cartoes["Reservas no período"].atualizar(resumo["reservas"])
         self.cartoes["Ticket médio"].atualizar(formatar_moeda(resumo["ticket_medio"]))
         totais = resumo["totais"]

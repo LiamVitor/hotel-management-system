@@ -66,6 +66,8 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
     (4, "202", -6, -3, "Finalizada"),
     (3, "301", -3, -1, "Não compareceu"),   # nunca chegou: marcada como no-show
     (2, "203", 3, 5, "Cancelada"),          # cancelamento tardio (retenção aplicada)
+    (0, "101", -40, -37, "Finalizada"),     # meses anteriores: dão base de comparação aos relatórios
+    (4, "203", -25, -22, "Finalizada"),
 ]
 
 # Horários REAIS de quem já fez check-in (e check-out). As datas de RESERVAS acima são as
@@ -79,6 +81,8 @@ HORARIOS_REAIS = {
     8: (1, "19:05", 0, "10:40"),     # chegou um dia depois do previsto
     9: (0, "13:30", 0, "14:20"),     # saiu depois do meio-dia
     10: (0, "15:45", 0, "11:15"),
+    13: (0, "14:00", 0, "11:00"),
+    14: (0, "15:30", 0, "10:45"),
 }
 
 # Cancelamentos e no-shows: quando aconteceu (dias a partir de hoje, hora), quem registrou e,
@@ -113,6 +117,9 @@ PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta),
     (7, 0.5, "PIX", -3, "16:00"),                # sinal da reserva que depois foi cancelada
     (11, 0.3, "PIX", -5, "09:00"),               # sinal da reserva que virou no-show
     (12, 0.5, "PIX", -4, "10:00"),               # sinal da reserva cancelada em cima da hora
+    (13, 1.0, "Cartão de crédito", -40, "14:05"),
+    (14, 0.5, "Dinheiro", -26, "09:30"),
+    (14, None, "PIX", -22, "10:50"),
 ]
 
 # Regra de retenção definida pela administração: (dias de antecedência, % no cancelamento

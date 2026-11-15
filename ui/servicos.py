@@ -1,10 +1,11 @@
 """Reúne os services usados pelas telas e prepara linhas para as tabelas."""
-from datetime import date
+from datetime import date, timedelta
 
 from src.models.pagamento import Pagamento
 from src.services.bloqueio_quarto_service import BloqueioQuartoService
 from src.services.caixa_service import CaixaService
 from src.services.conta_receber_service import ContaReceberService
+from src.services.demonstrativo_receitas_service import DemonstrativoReceitasService
 from src.services.demonstrativo_service import DemonstrativoFinanceiroService
 from src.services.despesa_service import DespesaService
 from src.services.historico_hospedagem_service import HistoricoHospedagemService
@@ -34,6 +35,7 @@ class Servicos:
         self.caixa = CaixaService()
         self.contas_receber = ContaReceberService()
         self.demonstrativo = DemonstrativoFinanceiroService()
+        self.receitas = DemonstrativoReceitasService()
         self.historico_hospedagem = HistoricoHospedagemService()
         self.politica_retencao = PoliticaRetencaoService()
         self.relatorio_cancelamentos = RelatorioCancelamentosService()
@@ -184,6 +186,51 @@ class Servicos:
                       else "− " + formatar_moeda(m.valor)),
             "saldo": formatar_moeda(m.saldo_apos),
         } for m in movimentacoes]
+
+    def linhas_receitas_comparacao(self, comparacao):
+        """Converte a comparação com o período anterior em dicionários prontos para a tabela."""
+        def valor(c, numero):
+            return formatar_moeda(numero) if c.monetario else str(int(numero))
+
+        def variacao(c):
+            sinal = "+" if c.variacao >= 0 else "−"
+            texto = formatar_moeda(abs(c.variacao)) if c.monetario else str(abs(int(c.variacao)))
+            return f"{sinal} {texto}"
+
+        def percentual(c):
+            if c.percentual is None:
+                return "—"
+            return ("+" if c.percentual >= 0 else "−") + formatar_percentual(abs(c.percentual))
+        return [{"indicador": c.indicador, "atual": valor(c, c.atual),
+                 "anterior": valor(c, c.anterior), "variacao": variacao(c),
+                 "percentual": percentual(c)} for c in comparacao]
+
+    def linhas_receitas_forma(self, formas):
+        return [{"forma": f.forma, "qtd": f.qtd_pagamentos,
+                 "bruto": formatar_moeda(f.recebido_bruto),
+                 "reembolsado": formatar_moeda(f.reembolsado),
+                 "recebido": formatar_moeda(f.recebido),
+                 "percentual": formatar_percentual(f.percentual)} for f in formas]
+
+    def linhas_receitas_quarto(self, quartos):
+        return [{"numero": q.numero, "tipo": q.tipo, "qtd": q.qtd_reservas,
+                 "reservado": formatar_moeda(q.reservado),
+                 "recebido": formatar_moeda(q.recebido),
+                 "reembolsado": formatar_moeda(q.reembolsado),
+                 "a_receber": formatar_moeda(q.a_receber)} for q in quartos]
+
+    def linhas_receitas_periodo(self, linhas, mensal=False):
+        """Dia a dia (mensal=False) ou mês a mês (mensal=True) do demonstrativo de receitas."""
+        def rotulo(l):
+            if not mensal:
+                return formatar_data(l.inicio)
+            ultimo = (l.inicio.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+            parcial = l.inicio.day != 1 or l.fim != ultimo
+            return f"{l.inicio:%m/%Y}" + (" (parcial)" if parcial else "")
+        return [{"periodo": rotulo(l), "reservado": formatar_moeda(l.reservado),
+                 "bruto": formatar_moeda(l.recebido_bruto),
+                 "reembolsado": formatar_moeda(l.reembolsado),
+                 "recebido": formatar_moeda(l.recebido)} for l in linhas]
 
     def linhas_fluxo_caixa(self, fluxo, granularidade):
         """Converte o fluxo de caixa (FluxoPeriodo) em dicionários prontos para a tabela."""
