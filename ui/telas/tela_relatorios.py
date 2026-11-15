@@ -13,6 +13,7 @@ from ui.componentes.botoes import botao_primario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
 from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.painel_cancelamentos import PainelCancelamentos
 from ui.componentes.painel_contas_receber import PainelContasReceber
 from ui.componentes.painel_demonstrativo import PainelDemonstrativo
 from ui.componentes.tabela import Tabela
@@ -36,7 +37,8 @@ LEGENDA_BARRAS = {
 
 # relatórios que o seletor oferece -> qual quadro mostrar
 VISOES = {"Ocupação por dia": "dia", "Ocupação por quarto": "quarto",
-          "Contas a receber": "contas", "Demonstrativo financeiro": "demonstrativo"}
+          "Contas a receber": "contas", "Demonstrativo financeiro": "demonstrativo",
+          "Cancelamentos e no-show": "cancelamentos"}
 
 
 class TelaRelatorios(TelaBase):
@@ -55,9 +57,11 @@ class TelaRelatorios(TelaBase):
         self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
         self.painel_contas = PainelContasReceber(self.corpo, self.servicos)
         self.painel_demonstrativo = PainelDemonstrativo(self.corpo, self.servicos)
+        self.painel_cancelamentos = PainelCancelamentos(self.corpo, self.servicos)
         # relatórios que têm painel próprio (os demais usam o painel de ocupação)
         self._paineis = {"contas": self.painel_contas,
-                         "demonstrativo": self.painel_demonstrativo}
+                         "demonstrativo": self.painel_demonstrativo,
+                         "cancelamentos": self.painel_cancelamentos}
 
         filtro = Cartao(self.painel_ocupacao, "Período")
         filtro.pack(fill="x")

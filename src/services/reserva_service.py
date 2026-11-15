@@ -4,10 +4,13 @@ from database.conexao import obter_conexao
 from src.models.reserva import Reserva
 from src.repositories.bloqueio_quarto_repository import BloqueioQuartoRepository
 from src.repositories.hospede_repository import HospedeRepository
+from src.repositories.pagamento_repository import PagamentoRepository
+from src.repositories.politica_retencao_repository import PoliticaRetencaoRepository
 from src.repositories.quarto_repository import QuartoRepository
 from src.repositories.reserva_repository import ReservaRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.services import bloqueio_regras
+from src.services import pagamento_regras, retencao_regras
 from src.services import reserva_regras as regras
 from src.services.erros import ErroNegocio
 from src.utils.filtros import normalizar_texto, parece_numerico
@@ -15,7 +18,8 @@ from src.utils.formatacao import apenas_digitos, formatar_data_hora
 from src.utils.sessao import Sessao
 from src.utils.constantes import (MOTIVO_CANCELAMENTO_MAX, MOTIVO_CANCELAMENTO_MIN,
                                   QUARTO_DISPONIVEL, QUARTO_MANUTENCAO, QUARTO_OCUPADO,
-                                  RESERVA_CONFIRMADA, RESERVA_HOSPEDADA)
+                                  RESERVA_CANCELADA, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA,
+                                  RESERVA_NO_SHOW)
 
 
 def _agora():
@@ -25,12 +29,14 @@ def _agora():
 
 class ReservaService:
     def __init__(self, repo=None, quarto_repo=None, hospede_repo=None, usuario_repo=None,
-                 bloqueio_repo=None):
+                 bloqueio_repo=None, pagamento_repo=None, politica_repo=None):
         self.repo = repo or ReservaRepository()
         self.quarto_repo = quarto_repo or QuartoRepository()
         self.hospede_repo = hospede_repo or HospedeRepository()
         self.usuario_repo = usuario_repo or UsuarioRepository()
         self.bloqueio_repo = bloqueio_repo or BloqueioQuartoRepository()
+        self.pagamento_repo = pagamento_repo or PagamentoRepository()
+        self.politica_repo = politica_repo or PoliticaRetencaoRepository()
 
     # ---------- consultas ----------
     def listar(self):
@@ -85,6 +91,11 @@ class ReservaService:
 
     def tem_conflito(self, quarto_id, entrada, saida):
         return bool(self.repo.listar_conflitantes(quarto_id, entrada, saida))
+
+    def previa_retencao(self, reserva_id, situacao):
+        """Quanto seria retido e devolvido se a reserva fosse cancelada (RESERVA_CANCELADA) ou
+        marcada como no-show (RESERVA_NO_SHOW) agora, pela regra vigente. Só calcula."""
+        return self._calcular_retencao(self._obter(reserva_id), situacao, _agora())
 
     def responsaveis(self, reservas):
         """{usuario_id: nome} de quem fez check-in, check-out, cancelamento ou no-show das reservas.
@@ -156,7 +167,10 @@ class ReservaService:
         reserva = self._obter(reserva_id)
         if not regras.pode_cancelar(reserva):
             raise ErroNegocio("Só é possível cancelar reservas confirmadas, antes do check-in.")
-        if not self.repo.registrar_cancelamento(reserva_id, _agora(), Sessao.usuario.id, motivo):
+        quando = _agora()
+        retencao = self._calcular_retencao(reserva, RESERVA_CANCELADA, quando)
+        if not self.repo.registrar_cancelamento(reserva_id, quando, Sessao.usuario.id, motivo,
+                                                retencao=self._para_gravar(retencao)):
             raise ErroNegocio("A situação da reserva mudou. Atualize a tela e tente de novo.")
         return self._obter(reserva_id)
 
@@ -175,7 +189,10 @@ class ReservaService:
         impedimento = self.impedimento_no_show(reserva)
         if impedimento:
             raise ErroNegocio(impedimento)
-        if not self.repo.registrar_no_show(reserva_id, _agora(), Sessao.usuario.id):
+        quando = _agora()
+        retencao = self._calcular_retencao(reserva, RESERVA_NO_SHOW, quando)
+        if not self.repo.registrar_no_show(reserva_id, quando, Sessao.usuario.id,
+                                           retencao=self._para_gravar(retencao)):
             raise ErroNegocio("A situação da reserva mudou. Atualize a tela e tente de novo.")
         return self._obter(reserva_id)
 
@@ -215,6 +232,17 @@ class ReservaService:
         return self._obter(reserva_id)
 
     # ---------- internos ----------
+    def _calcular_retencao(self, reserva, situacao, quando):
+        """Retenção da regra vigente sobre o que a reserva tem pago (pagamentos - reembolsos)."""
+        pago = pagamento_regras.total_pago(self.pagamento_repo.listar_por_reserva(reserva.id))
+        antecedencia = retencao_regras.antecedencia_dias(reserva.data_entrada, quando.date())
+        return retencao_regras.calcular(self.politica_repo.vigente(), situacao,
+                                        reserva.valor_total, pago, antecedencia)
+
+    @staticmethod
+    def _para_gravar(retencao):
+        return retencao.percentual, retencao.valor_retido, retencao.politica_id
+
     def _obter(self, reserva_id):
         reserva = self.repo.buscar_por_id(reserva_id)
         if reserva is None:

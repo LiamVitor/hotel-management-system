@@ -46,6 +46,14 @@ FILTROS_CONTAS = [CONTAS_EM_ABERTO, CONTAS_VENCIDAS, CONTAS_A_VENCER, CONTAS_QUI
                   CONTAS_TODAS]
 VENCIMENTO_MAX_DIAS_APOS_SAIDA = 365   # limite para escolher o vencimento
 
+# Retenção em cancelamento e no-show: a administração define a regra (ver PoliticaRetencao)
+RETENCAO_DIAS_MAX = 365
+RELATORIO_CANC_TODOS = "Todos"
+RELATORIO_CANC_CANCELAMENTOS = "Cancelamentos"
+RELATORIO_CANC_NO_SHOWS = "No-shows"
+FILTROS_CANCELAMENTOS = [RELATORIO_CANC_TODOS, RELATORIO_CANC_CANCELAMENTOS,
+                         RELATORIO_CANC_NO_SHOWS]
+
 FORMAS_PAGAMENTO = ["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Transferência"]
 
 PAGAMENTO_NORMAL = "Pagamento"

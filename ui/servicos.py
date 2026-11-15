@@ -12,6 +12,8 @@ from src.services.hospede_service import HospedeService
 from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
 from src.services.pagamento_service import PagamentoService
 from src.services.quarto_service import QuartoService
+from src.services.politica_retencao_service import PoliticaRetencaoService
+from src.services.relatorio_cancelamentos_service import RelatorioCancelamentosService
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
 from src.utils.constantes import (CAIXA_ENTRADA, CONTA_A_VENCER, CONTA_VENCIDA,
@@ -33,6 +35,8 @@ class Servicos:
         self.contas_receber = ContaReceberService()
         self.demonstrativo = DemonstrativoFinanceiroService()
         self.historico_hospedagem = HistoricoHospedagemService()
+        self.politica_retencao = PoliticaRetencaoService()
+        self.relatorio_cancelamentos = RelatorioCancelamentosService()
         self.usuarios = UsuarioService()
 
     def linhas_reservas(self, reservas):
@@ -135,6 +139,34 @@ class Servicos:
             "vencimento": formatar_data(c.data_vencimento),
             "situacao": situacao(c),
         } for c in contas]
+
+    def linhas_cancelamentos(self, registros):
+        """Converte o relatório de cancelamentos e no-show em dicionários para a tabela."""
+        def moeda(valor):
+            return "—" if valor is None else formatar_moeda(valor)
+        return [{
+            "id": r.reserva_id,
+            "reserva": f"{r.reserva_id:04d}",
+            "hospede": r.hospede,
+            "tipo": "No-show" if r.situacao == RESERVA_NO_SHOW else "Cancelamento",
+            "criada_em": formatar_data(r.criada_em.date()) if r.criada_em else "—",
+            "entrada": formatar_data(r.data_entrada),
+            "evento_em": formatar_data_hora(r.evento_em) if r.evento_em else "—",
+            "motivo": r.motivo or "—",
+            "retido": moeda(r.valor_retido),
+            "reembolsado": formatar_moeda(r.reembolsado),
+            "a_reembolsar": moeda(r.a_reembolsar),
+        } for r in registros]
+
+    def linhas_politica_retencao(self, historico):
+        """Converte o histórico da regra de retenção em dicionários para a tabela."""
+        return [{
+            "dias": f"{p.dias_antecedencia} dia(s)",
+            "tardio": formatar_percentual(p.percentual_cancelamento_tardio),
+            "no_show": formatar_percentual(p.percentual_no_show),
+            "definido_em": formatar_data_hora(p.definido_em),
+            "responsavel": nome,
+        } for p, nome in historico]
 
     def linhas_caixa(self, movimentacoes):
         """Converte movimentações do caixa em dicionários prontos para a tabela.

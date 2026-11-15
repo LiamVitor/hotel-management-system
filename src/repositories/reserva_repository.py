@@ -40,6 +40,9 @@ class ReservaRepository:
                              if linha["data_vencimento"] else date.fromisoformat(linha["data_entrada"])),
             vencimento_alterado_em=_data_hora(linha["vencimento_alterado_em"]),
             vencimento_alterado_por=linha["vencimento_alterado_por"],
+            retencao_percentual=linha["retencao_percentual"],
+            valor_retido=linha["valor_retido"],
+            politica_retencao_id=linha["politica_retencao_id"],
         )
 
     def _para_objetos(self, linhas):
@@ -58,8 +61,9 @@ class ReservaRepository:
                 valor_diaria, valor_total, situacao, criada_em,
                 checkin_em, checkin_por, checkout_em, checkout_por,
                 cancelada_em, cancelada_por, cancelamento_motivo, noshow_em, noshow_por,
-                data_vencimento, vencimento_alterado_em, vencimento_alterado_por)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                data_vencimento, vencimento_alterado_em, vencimento_alterado_por,
+                retencao_percentual, valor_retido, politica_retencao_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 reserva.hospede_id,
                 reserva.quarto_id,
@@ -82,6 +86,9 @@ class ReservaRepository:
                 reserva.vencimento_alterado_em.isoformat(**FORMATO_DATA_HORA)
                 if reserva.vencimento_alterado_em else None,
                 reserva.vencimento_alterado_por,
+                reserva.retencao_percentual,
+                reserva.valor_retido,
+                reserva.politica_retencao_id,
             ),
             conexao=conexao,
         )
@@ -188,17 +195,21 @@ class ReservaRepository:
         )
         return afetadas > 0
 
-    def registrar_cancelamento(self, reserva_id, quando, usuario_id, motivo, conexao=None):
+    def registrar_cancelamento(self, reserva_id, quando, usuario_id, motivo, retencao=None,
+                               conexao=None):
         """Cancela a reserva e grava quando, por quem e por que foi cancelada.
 
-        Só age se a reserva ainda está confirmada; devolve False se não agiu.
+        retencao: (percentual, valor retido, id da regra) calculado pelo service, gravado junto
+        no mesmo comando. Só age se a reserva ainda está confirmada; devolve False se não agiu.
         """
+        percentual, retido, politica_id = retencao or (None, None, None)
         afetadas = executar(
             """UPDATE reservas
-               SET situacao = ?, cancelada_em = ?, cancelada_por = ?, cancelamento_motivo = ?
+               SET situacao = ?, cancelada_em = ?, cancelada_por = ?, cancelamento_motivo = ?,
+                   retencao_percentual = ?, valor_retido = ?, politica_retencao_id = ?
                WHERE id = ? AND situacao = ?""",
             (RESERVA_CANCELADA, quando.isoformat(**FORMATO_DATA_HORA), usuario_id, motivo,
-             reserva_id, RESERVA_CONFIRMADA),
+             percentual, retido, politica_id, reserva_id, RESERVA_CONFIRMADA),
             conexao=conexao,
         )
         return afetadas > 0
@@ -218,16 +229,37 @@ class ReservaRepository:
         )
         return afetadas > 0
 
-    def registrar_no_show(self, reserva_id, quando, usuario_id, conexao=None):
+    def registrar_no_show(self, reserva_id, quando, usuario_id, retencao=None, conexao=None):
         """Marca a reserva como 'Não compareceu' e grava quando e por quem foi marcada.
 
+        retencao: (percentual, valor retido, id da regra), como em registrar_cancelamento.
         Só age se a reserva ainda está confirmada; devolve False se não agiu.
         """
+        percentual, retido, politica_id = retencao or (None, None, None)
         afetadas = executar(
-            """UPDATE reservas SET situacao = ?, noshow_em = ?, noshow_por = ?
+            """UPDATE reservas
+               SET situacao = ?, noshow_em = ?, noshow_por = ?,
+                   retencao_percentual = ?, valor_retido = ?, politica_retencao_id = ?
                WHERE id = ? AND situacao = ?""",
             (RESERVA_NO_SHOW, quando.isoformat(**FORMATO_DATA_HORA), usuario_id,
-             reserva_id, RESERVA_CONFIRMADA),
+             percentual, retido, politica_id, reserva_id, RESERVA_CONFIRMADA),
+            conexao=conexao,
+        )
+        return afetadas > 0
+
+    def registrar_retencao(self, reserva_id, percentual, valor_retido, politica_id,
+                           conexao=None):
+        """Grava (ou completa) a retenção de uma reserva já cancelada ou de no-show.
+
+        Usado pelo seed e para completar registros antigos; no dia a dia a retenção é gravada
+        junto com o cancelamento ou o no-show.
+        """
+        afetadas = executar(
+            """UPDATE reservas
+               SET retencao_percentual = ?, valor_retido = ?, politica_retencao_id = ?
+               WHERE id = ? AND situacao IN (?, ?)""",
+            (percentual, valor_retido, politica_id, reserva_id, RESERVA_CANCELADA,
+             RESERVA_NO_SHOW),
             conexao=conexao,
         )
         return afetadas > 0

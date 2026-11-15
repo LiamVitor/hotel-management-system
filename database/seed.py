@@ -11,6 +11,7 @@ from src.models.quarto import Quarto
 from src.models.bloqueio_quarto import BloqueioQuarto
 from src.models.despesa import Despesa
 from src.models.pagamento import Pagamento
+from src.models.politica_retencao import PoliticaRetencao
 from src.models.reserva import Reserva
 from src.repositories.usuario_repository import UsuarioRepository
 from src.repositories.bloqueio_quarto_repository import BloqueioQuartoRepository
@@ -21,7 +22,9 @@ from src.repositories.caixa_repository import CaixaRepository
 from src.repositories.categoria_despesa_repository import CategoriaDespesaRepository
 from src.repositories.despesa_repository import DespesaRepository
 from src.repositories.pagamento_repository import PagamentoRepository
+from src.repositories.politica_retencao_repository import PoliticaRetencaoRepository
 from src.repositories.reserva_repository import ReservaRepository
+from src.services import retencao_regras
 
 USUARIOS = [  # nome, usuário, senha, perfil
     ("Administrador", "admin", "admin123", "admin"),
@@ -62,6 +65,7 @@ RESERVAS = [  # hóspede (posição), quarto (número), dias até entrada, dias 
     (3, "102", -4, -1, "Finalizada"),
     (4, "202", -6, -3, "Finalizada"),
     (3, "301", -3, -1, "Não compareceu"),   # nunca chegou: marcada como no-show
+    (2, "203", 3, 5, "Cancelada"),          # cancelamento tardio (retenção aplicada)
 ]
 
 # Horários REAIS de quem já fez check-in (e check-out). As datas de RESERVAS acima são as
@@ -81,6 +85,7 @@ HORARIOS_REAIS = {
 # no cancelamento, o motivo. posição em RESERVAS -> (dias, hora, usuário, motivo)
 CANCELAMENTOS = {
     7: (-2, "10:20", "gerente", "Hóspede desistiu da viagem"),
+    12: (-1, "15:30", "gerente", "Mudança de planos da família"),
 }
 NO_SHOWS = {
     11: (-2, "09:00", "recepcao"),    # marcado na manhã seguinte à data de entrada
@@ -106,7 +111,13 @@ PAGAMENTOS = [  # posição em RESERVAS, fração do total (None = o que falta),
     (10, 0.6, "Transferência", -6, "10:00"),     # finalizada paga em duas vezes
     (10, None, "PIX", -3, "11:00"),
     (7, 0.5, "PIX", -3, "16:00"),                # sinal da reserva que depois foi cancelada
+    (11, 0.3, "PIX", -5, "09:00"),               # sinal da reserva que virou no-show
+    (12, 0.5, "PIX", -4, "10:00"),               # sinal da reserva cancelada em cima da hora
 ]
+
+# Regra de retenção definida pela administração: (dias de antecedência, % no cancelamento
+# tardio, % no no-show, dias atrás em que foi definida)
+POLITICA_RETENCAO = (7, 30.0, 100.0, 45)
 
 REEMBOLSOS = [  # posição em RESERVAS, posição em PAGAMENTOS (ou None), valor, forma, dias, hora, motivo
     (7, 11, 100.0, "PIX", -2, "10:30", "Cancelamento da reserva (devolução parcial do sinal)"),
@@ -225,6 +236,24 @@ def popular():
             reserva_id=reservas[pos].id, valor=valor, forma=forma, tipo="Reembolso", motivo=motivo,
             pagamento_origem_id=origem.id if origem else None, usuario_id=gerente.id,
             data_hora=datetime.combine(hoje + timedelta(days=dias), time.fromisoformat(hora))))
+
+    # regra de retenção e o que ela reteve nos cancelamentos e no-shows de exemplo
+    admin = repo_u.buscar_por_usuario("admin")
+    dias_ant, pct_tardio, pct_no_show, atras = POLITICA_RETENCAO
+    politica = PoliticaRetencaoRepository().definir(PoliticaRetencao(
+        dias_antecedencia=dias_ant, percentual_cancelamento_tardio=pct_tardio,
+        percentual_no_show=pct_no_show, usuario_id=admin.id,
+        definido_em=datetime.combine(hoje - timedelta(days=atras), time(8, 0))))
+    for indice in sorted(set(CANCELAMENTOS) | set(NO_SHOWS)):
+        reserva = reservas[indice]
+        if indice in CANCELAMENTOS:
+            situacao, quando = "Cancelada", hoje + timedelta(days=CANCELAMENTOS[indice][0])
+        else:
+            situacao, quando = "Não compareceu", hoje + timedelta(days=NO_SHOWS[indice][0])
+        antecedencia = retencao_regras.antecedencia_dias(reserva.data_entrada, quando)
+        r = retencao_regras.calcular(politica, situacao, reserva.valor_total,
+                                     pago.get(indice, 0.0), antecedencia)
+        repo_r.registrar_retencao(reserva.id, r.percentual, r.valor_retido, politica.id)
 
     # bloqueios de exemplo (histórico de manutenção): nenhum encosta nas reservas acima
     repo_b = BloqueioQuartoRepository()

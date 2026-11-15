@@ -33,3 +33,7 @@ class Reserva:
     data_vencimento: Optional[date] = None
     vencimento_alterado_em: Optional[datetime] = None
     vencimento_alterado_por: Optional[int] = None
+    # Retenção em cancelamento/no-show (foto da regra vigente na hora; None = não registrada)
+    retencao_percentual: Optional[float] = None
+    valor_retido: Optional[float] = None
+    politica_retencao_id: Optional[int] = None

@@ -31,7 +31,7 @@ _GERENCIA = _RECEPCAO | {
     "caixa.ver", "caixa.configurar",
     "relatorios.ver",
 }
-_ADMINISTRACAO = _GERENCIA | {"usuarios.gerenciar"}
+_ADMINISTRACAO = _GERENCIA | {"usuarios.gerenciar", "retencao.configurar"}
 
 PERMISSOES = {
     ADMIN: _ADMINISTRACAO,

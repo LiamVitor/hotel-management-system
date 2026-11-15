@@ -2,8 +2,8 @@
 import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
-from src.utils.constantes import MOTIVO_CANCELAMENTO_MAX
-from src.utils.formatacao import formatar_data
+from src.utils.constantes import MOTIVO_CANCELAMENTO_MAX, RESERVA_CANCELADA
+from src.utils.formatacao import formatar_data, formatar_moeda, formatar_percentual
 from ui.componentes.botoes import botao_perigo, botao_secundario
 from ui.componentes.campos import CampoTexto
 from ui.componentes.cartao import Cartao
@@ -21,7 +21,7 @@ def abrir_cancelamento(master, servicos, reserva_id, ao_atualizar=None):
 
 
 class JanelaCancelamento(ctk.CTkToplevel):
-    LARGURA, ALTURA = 600, 380
+    LARGURA, ALTURA = 600, 440
 
     def __init__(self, master, servicos, reserva_id, ao_atualizar=None):
         super().__init__(master, fg_color=COR_FUNDO)
@@ -78,6 +78,17 @@ class JanelaCancelamento(ctk.CTkToplevel):
             font=fonte(12), text_color=COR_TEXTO_SUAVE, anchor="w", justify="left",
             wraplength=self.LARGURA - 100)
         self.lbl_aviso.pack(anchor="w", padx=20, pady=(8, 16))
+
+        previa = self.servicos.reservas.previa_retencao(reserva.id, RESERVA_CANCELADA)
+        if previa.pago > 0 or previa.valor_retido > 0:
+            ctk.CTkLabel(
+                self, font=fonte(12), text_color=COR_TEXTO_SUAVE, anchor="w", justify="left",
+                wraplength=self.LARGURA - 48,
+                text=(f"Regra de retenção: pago {formatar_moeda(previa.pago)}; retido "
+                      f"{formatar_moeda(previa.valor_retido)} "
+                      f"({formatar_percentual(previa.percentual)}); a devolver "
+                      f"{formatar_moeda(previa.a_devolver)}.")
+            ).pack(anchor="w", padx=24, pady=(10, 0))
 
     # ---------- ações ----------
     def _confirmar(self):

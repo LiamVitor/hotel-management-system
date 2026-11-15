@@ -20,7 +20,7 @@ from ui.componentes.tabela import Tabela
 from ui.estilos import (AZUL, COR_BORDA_CAMPO, COR_SELECAO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE,
                         VERMELHO, fonte)
 from ui.telas.tela_base import TelaBase
-from src.utils.constantes import QUARTO_MANUTENCAO, SITUACOES_RESERVA
+from src.utils.constantes import QUARTO_MANUTENCAO, RESERVA_NO_SHOW, SITUACOES_RESERVA
 from src.utils.filtros import normalizar_texto
 from src.utils.sessao import Sessao
 from src.utils.formatacao import formatar_data, formatar_moeda, ler_data, mascara_data
@@ -386,9 +386,14 @@ class TelaReservas(TelaBase):
         if reserva is None or impedimento:
             messagebox.showerror("Não é possível marcar", impedimento or "Reserva não encontrada.")
             return
+        previa = self.servicos.reservas.previa_retencao(linha["id"], RESERVA_NO_SHOW)
         pergunta = (f"Marcar a reserva {linha['codigo']} de {linha['hospede']} como "
                     "'Não compareceu'?\n\nO quarto volta a ficar livre para o período. "
                     "A marcação fica registrada com a data, a hora e o seu usuário.")
+        if previa.pago > 0:
+            pergunta += (f"\n\nPela regra de retenção: pago {formatar_moeda(previa.pago)}, "
+                         f"retido {formatar_moeda(previa.valor_retido)}, "
+                         f"a devolver {formatar_moeda(previa.a_devolver)}.")
         if not messagebox.askyesno("Marcar no-show", pergunta):
             return
         try:
@@ -408,6 +413,11 @@ class TelaReservas(TelaBase):
         pago = self.servicos.pagamentos.resumo(linha["id"]).total_pago
         if pago <= 0 or not Sessao.pode("pagamentos.reembolsar"):
             return
-        if messagebox.askyesno("Reembolso", f"Esta reserva tinha {formatar_moeda(pago)} pagos.\n\n"
-                                            "Deseja registrar o reembolso agora?"):
+        reserva = self.servicos.reservas.buscar_por_id(linha["id"])
+        retido = (reserva.valor_retido or 0.0) if reserva else 0.0
+        texto = f"Esta reserva tinha {formatar_moeda(pago)} pagos.\n"
+        if retido > 0:
+            texto += (f"Retido pela regra: {formatar_moeda(retido)}. "
+                      f"A devolver: {formatar_moeda(max(pago - retido, 0.0))}.\n")
+        if messagebox.askyesno("Reembolso", texto + "\nDeseja registrar o reembolso agora?"):
             abrir_reembolso(self, self.servicos, linha["id"], ao_atualizar=self.atualizar_tabela)

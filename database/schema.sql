@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS reservas (
     data_vencimento          TEXT,                     -- 'AAAA-MM-DD'
     vencimento_alterado_em   TEXT,
     vencimento_alterado_por  INTEGER REFERENCES usuarios(id),
+    -- retenção (cancelamento ou no-show): quanto do valor pago o hotel ficou, pela regra
+    -- vigente na hora. É uma foto: mudar a regra depois não altera o que já foi registrado.
+    retencao_percentual   REAL,                        -- % do valor da reserva que a regra mandou reter
+    valor_retido          REAL,                        -- valor retido (nunca maior que o valor pago)
+    politica_retencao_id  INTEGER REFERENCES politica_retencao(id),
     CHECK (data_saida > data_entrada)
 );
 
@@ -175,6 +180,34 @@ BEFORE UPDATE ON caixa_saldo_inicial
 BEGIN
     SELECT RAISE(ABORT, 'O histórico do saldo inicial não pode ser alterado.');
 END;
+
+-- Regra de retenção definida pela administração: quanto do valor da reserva o hotel retém
+-- quando a reserva é cancelada em cima da hora ou o hóspede não comparece. Cada linha é uma
+-- definição; a mais recente vale e as anteriores ficam como histórico (não se altera nem apaga).
+CREATE TABLE IF NOT EXISTS politica_retencao (
+    id                              INTEGER PRIMARY KEY AUTOINCREMENT,
+    dias_antecedencia               INTEGER NOT NULL CHECK (dias_antecedencia >= 0),
+    percentual_cancelamento_tardio  REAL NOT NULL
+                                    CHECK (percentual_cancelamento_tardio BETWEEN 0 AND 100),
+    percentual_no_show              REAL NOT NULL CHECK (percentual_no_show BETWEEN 0 AND 100),
+    usuario_id                      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    definido_em                     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_politica_retencao_nao_excluir
+BEFORE DELETE ON politica_retencao
+BEGIN
+    SELECT RAISE(ABORT, 'O histórico da regra de retenção não pode ser excluído.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_politica_retencao_nao_alterar
+BEFORE UPDATE ON politica_retencao
+BEGIN
+    SELECT RAISE(ABORT, 'O histórico da regra de retenção não pode ser alterado.');
+END;
+
+-- O relatório de cancelamentos e no-show busca as reservas por situação
+CREATE INDEX IF NOT EXISTS idx_reservas_situacao ON reservas (situacao);
 
 -- O extrato do caixa busca pagamentos e reembolsos por data
 CREATE INDEX IF NOT EXISTS idx_pagamentos_data_hora ON pagamentos (data_hora);
