@@ -10,7 +10,8 @@ from src.utils.formatacao import formatar_data, formatar_moeda
 from src.utils.periodos import ATALHOS_RELATORIO, ESTE_MES, PERSONALIZADO, periodo_do_atalho
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
-from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.cartao import Cartao
+from ui.componentes.painel_relatorio import PainelRelatorio
 from ui.componentes.tabela import Tabela
 from ui.estilos import COR_TEXTO, COR_TEXTO_SUAVE, VERDE, VERMELHO, fonte
 
@@ -32,12 +33,13 @@ COLUNAS_FLUXO = [("Período", "periodo", 170), ("Entradas", "entradas", 120),
 NOME_GRUPO = {GRANULARIDADE_DIA: "dia", GRANULARIDADE_MES: "mês"}
 
 
-class PainelDemonstrativo(ctk.CTkFrame):
-    def __init__(self, master, servicos):
-        super().__init__(master, fg_color="transparent")
-        self.servicos = servicos
+class PainelDemonstrativo(PainelRelatorio):
+    TITULO = "Demonstrativo financeiro"
 
-        filtro = Cartao(self, "Demonstrativo financeiro")
+    def __init__(self, master, servicos):
+        super().__init__(master, servicos)
+
+        filtro = Cartao(self, "Filtros")
         filtro.pack(fill="x")
         linha = ctk.CTkFrame(filtro, fg_color="transparent")
         linha.pack(fill="x", padx=20, pady=(0, 18))
@@ -53,23 +55,18 @@ class PainelDemonstrativo(ctk.CTkFrame):
             campo.grid(row=0, column=coluna, sticky="ew",
                        padx=(0 if coluna == 0 else 6, 0 if coluna == 4 else 6))
 
-        cartoes = ctk.CTkFrame(self, fg_color="transparent")
-        cartoes.pack(fill="x", pady=(16, 0))
-        self.cartoes = {}
-        for i, nome in enumerate(CARTOES):
-            cartoes.grid_columnconfigure(i, weight=1, uniform="resumo")
-            cartao = CartaoResumo(cartoes, nome, "—", tamanho_valor=21)
-            cartao.grid(row=0, column=i, sticky="ew",
-                        padx=(0 if i == 0 else 6, 0 if i == len(CARTOES) - 1 else 6))
-            self.cartoes[nome] = cartao
+        self.cartoes = self.criar_indicadores(CARTOES)
 
         lista = Cartao(self)
         lista.pack(fill="both", expand=True, pady=(16, 0))
         self.lbl_info = ctk.CTkLabel(lista, text="", font=fonte(12), anchor="w", justify="left",
                                      text_color=COR_TEXTO_SUAVE, wraplength=880)
         self.lbl_info.pack(side="bottom", anchor="w", padx=20, pady=(0, 14))
+        self.registrar_nota(self.lbl_info)
         self.tabela_historico = Tabela(lista, COLUNAS_HISTORICO, altura=130)
         self.tabela_fluxo = Tabela(lista, COLUNAS_FLUXO, altura=130)
+        self.registrar_tabela("Fluxo de caixa", self.tabela_fluxo)
+        self.registrar_tabela("Histórico de movimentações", self.tabela_historico)
 
         self.atalho.definir(ESTE_MES)
         self.visao.definir(HISTORICO)
@@ -115,6 +112,7 @@ class PainelDemonstrativo(ctk.CTkFrame):
                 messagebox.showwarning("Período inválido", str(erro))
             return
 
+        self.marcar_emissao(inicio, fim)
         r = dem.resumo
         self.cartoes["Saldo inicial"].atualizar(formatar_moeda(r.saldo_inicial))
         self.cartoes["Entradas"].atualizar(formatar_moeda(r.entradas_pagamentos), VERDE)

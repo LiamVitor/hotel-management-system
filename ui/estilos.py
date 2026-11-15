@@ -19,6 +19,9 @@ VERMELHO = "#DC2626"
 VERMELHO_HOVER = "#B91C1C"
 VERDE = "#16A34A"
 
+# Tamanho do número nos cartões de indicadores de todos os relatórios
+TAMANHO_INDICADOR = 21
+
 # Se a Inter não estiver instalada no Windows, o Tk usa uma fonte padrão.
 FONTE_FAMILIA = "Inter"
 

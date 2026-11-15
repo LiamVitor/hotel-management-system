@@ -10,9 +10,10 @@ from src.utils.sessao import Sessao
 from ui.componentes.botoes import botao_secundario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao, CampoTexto
-from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.cartao import Cartao
 from ui.componentes.janela_detalhes_reserva import abrir_detalhes
 from ui.componentes.janela_politica_retencao import abrir_politica_retencao
+from ui.componentes.painel_relatorio import PainelRelatorio
 from ui.componentes.tabela import Tabela
 from ui.estilos import COR_TEXTO_SUAVE, fonte
 
@@ -24,12 +25,14 @@ COLUNAS = [("Reserva", "reserva", 60), ("Hóspede", "hospede", 125), ("Tipo", "t
 CARTOES = ["Cancelamentos", "No-shows", "Total retido", "Total reembolsado", "A reembolsar"]
 
 
-class PainelCancelamentos(ctk.CTkFrame):
-    def __init__(self, master, servicos):
-        super().__init__(master, fg_color="transparent")
-        self.servicos = servicos
+class PainelCancelamentos(PainelRelatorio):
+    TITULO = "Cancelamentos e no-show"
+    ROTULO_PERIODO = "Ocorridos"
 
-        filtro = Cartao(self, "Cancelamentos e no-show")
+    def __init__(self, master, servicos):
+        super().__init__(master, servicos)
+
+        filtro = Cartao(self, "Filtros")
         filtro.pack(fill="x")
         linha = ctk.CTkFrame(filtro, fg_color="transparent")
         linha.pack(fill="x", padx=20, pady=(0, 18))
@@ -43,15 +46,7 @@ class PainelCancelamentos(ctk.CTkFrame):
             campo.grid(row=0, column=coluna, sticky="ew",
                        padx=(0 if coluna == 0 else 8, 0 if coluna == 3 else 8))
 
-        cartoes = ctk.CTkFrame(self, fg_color="transparent")
-        cartoes.pack(fill="x", pady=(16, 0))
-        self.cartoes = {}
-        for i, nome in enumerate(CARTOES):
-            cartoes.grid_columnconfigure(i, weight=1, uniform="resumo")
-            cartao = CartaoResumo(cartoes, nome, "—", tamanho_valor=21)
-            cartao.grid(row=0, column=i, sticky="ew",
-                        padx=(0 if i == 0 else 6, 0 if i == len(CARTOES) - 1 else 6))
-            self.cartoes[nome] = cartao
+        self.cartoes = self.criar_indicadores(CARTOES)
 
         lista = Cartao(self)
         lista.pack(fill="both", expand=True, pady=(16, 0))
@@ -60,11 +55,13 @@ class PainelCancelamentos(ctk.CTkFrame):
         self.lbl_regra = ctk.CTkLabel(rodape, anchor="w", justify="left", font=fonte(12),
                                       text_color=COR_TEXTO_SUAVE, wraplength=620)
         self.lbl_regra.pack(side="left")
+        self.registrar_nota(self.lbl_regra)
         if Sessao.pode("retencao.configurar"):
             botao_secundario(rodape, "Regra de retenção...", self._abrir_regra, 170
                              ).pack(side="right")
         self.tabela = Tabela(lista, COLUNAS, altura=150, ao_duplo_clique=self._detalhes)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(16, 8))
+        self.registrar_tabela("Cancelamentos e no-show", self.tabela)
 
         self.tipo.definir(RELATORIO_CANC_TODOS)
 
@@ -93,14 +90,15 @@ class PainelCancelamentos(ctk.CTkFrame):
 
     def atualizar(self, silencioso=False):
         try:
+            de, ate = self._ler(self.de), self._ler(self.ate)
             registros = self.servicos.relatorio_cancelamentos.listar(
-                self.tipo.valor() or RELATORIO_CANC_TODOS,
-                self._ler(self.de), self._ler(self.ate), self.busca.valor())
+                self.tipo.valor() or RELATORIO_CANC_TODOS, de, ate, self.busca.valor())
             totais = self.servicos.relatorio_cancelamentos.totais(registros)
         except ErroNegocio as erro:
             if not silencioso:
                 messagebox.showwarning("Filtro inválido", str(erro))
             return
+        self.marcar_emissao(de, ate)
         self.cartoes["Cancelamentos"].atualizar(totais["cancelamentos"])
         self.cartoes["No-shows"].atualizar(totais["no_shows"])
         self.cartoes["Total retido"].atualizar(formatar_moeda(totais["total_retido"]))

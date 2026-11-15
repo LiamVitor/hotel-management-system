@@ -8,7 +8,8 @@ from src.utils.formatacao import formatar_data, formatar_moeda
 from src.utils.periodos import ATALHOS_RELATORIO, ESTE_MES, PERSONALIZADO, periodo_do_atalho
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
-from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.cartao import Cartao
+from ui.componentes.painel_relatorio import PainelRelatorio
 from ui.componentes.tabela import Tabela
 from ui.estilos import COR_TEXTO_SUAVE, VERDE, VERMELHO, fonte
 
@@ -38,12 +39,13 @@ COLUNAS = {
 }
 
 
-class PainelReceitas(ctk.CTkFrame):
-    def __init__(self, master, servicos):
-        super().__init__(master, fg_color="transparent")
-        self.servicos = servicos
+class PainelReceitas(PainelRelatorio):
+    TITULO = "Demonstrativo de receitas"
 
-        filtro = Cartao(self, "Demonstrativo de receitas")
+    def __init__(self, master, servicos):
+        super().__init__(master, servicos)
+
+        filtro = Cartao(self, "Filtros")
         filtro.pack(fill="x")
         linha = ctk.CTkFrame(filtro, fg_color="transparent")
         linha.pack(fill="x", padx=20, pady=(0, 18))
@@ -57,22 +59,17 @@ class PainelReceitas(ctk.CTkFrame):
             campo.grid(row=0, column=coluna, sticky="ew",
                        padx=(0 if coluna == 0 else 8, 0 if coluna == 3 else 8))
 
-        cartoes = ctk.CTkFrame(self, fg_color="transparent")
-        cartoes.pack(fill="x", pady=(16, 0))
-        self.cartoes = {}
-        for i, nome in enumerate(CARTOES):
-            cartoes.grid_columnconfigure(i, weight=1, uniform="resumo")
-            cartao = CartaoResumo(cartoes, nome, "—", tamanho_valor=21)
-            cartao.grid(row=0, column=i, sticky="ew",
-                        padx=(0 if i == 0 else 6, 0 if i == len(CARTOES) - 1 else 6))
-            self.cartoes[nome] = cartao
+        self.cartoes = self.criar_indicadores(CARTOES)
 
         lista = Cartao(self)
         lista.pack(fill="both", expand=True, pady=(16, 0))
         self.lbl_info = ctk.CTkLabel(lista, text="", font=fonte(12), anchor="w", justify="left",
                                      text_color=COR_TEXTO_SUAVE, wraplength=880)
         self.lbl_info.pack(side="bottom", anchor="w", padx=20, pady=(0, 14))
+        self.registrar_nota(self.lbl_info)
         self.tabelas = {v: Tabela(lista, COLUNAS[v], altura=130) for v in VISOES}
+        for v in VISOES:
+            self.registrar_tabela(v, self.tabelas[v])
         self._visivel = None
 
         self.atalho.definir(ESTE_MES)
@@ -117,6 +114,7 @@ class PainelReceitas(ctk.CTkFrame):
                 messagebox.showwarning("Período inválido", str(erro))
             return
 
+        self.marcar_emissao(inicio, fim)
         r = dem.resumo
         self.cartoes["Valor reservado"].atualizar(formatar_moeda(r.reservado))
         self.cartoes["Receita recebida"].atualizar(formatar_moeda(r.recebido), VERDE)

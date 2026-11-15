@@ -90,6 +90,10 @@ class Tabela(ctk.CTkFrame):
         self._selecionar(indice)
         self.ao_duplo_clique(self._linhas[indice])
 
+    def linhas_carregadas(self):
+        """Cópia das linhas que a tabela está mostrando (usada para montar o documento)."""
+        return list(self._linhas)
+
     def selecionado(self):
         """Retorna o dicionário da linha selecionada ou None."""
         if self._indice is None or self._indice >= len(self._linhas):

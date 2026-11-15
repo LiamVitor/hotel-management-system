@@ -12,11 +12,12 @@ from src.utils.periodos import ATALHOS_RELATORIO, PERSONALIZADO, periodo_do_atal
 from ui.componentes.botoes import botao_primario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
-from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.cartao import Cartao
 from ui.componentes.painel_cancelamentos import PainelCancelamentos
 from ui.componentes.painel_contas_receber import PainelContasReceber
 from ui.componentes.painel_demonstrativo import PainelDemonstrativo
 from ui.componentes.painel_receitas import PainelReceitas
+from ui.componentes.painel_relatorio import PainelRelatorio
 from ui.componentes.tabela import Tabela
 from ui.estilos import AZUL, COR_BORDA, COR_CARTAO, COR_TEXTO, COR_TEXTO_SUAVE, FONTE_FAMILIA, fonte
 from ui.telas.tela_base import TelaBase
@@ -54,7 +55,8 @@ class TelaRelatorios(TelaBase):
         self.visao = CampoSelecao(seletor, "Relatório", list(VISOES), self._trocar_visao)
         self.visao.caixa.configure(width=280)
         self.visao.pack(anchor="w")
-        self.painel_ocupacao = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        self.painel_ocupacao = PainelRelatorio(self.corpo, self.servicos)    # cabeçalho padrão no topo
+        self.painel_ocupacao.definir_titulo(self._titulo_ocupacao())
         self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
         self.painel_contas = PainelContasReceber(self.corpo, self.servicos)
         self.painel_demonstrativo = PainelDemonstrativo(self.corpo, self.servicos)
@@ -66,7 +68,7 @@ class TelaRelatorios(TelaBase):
                          "cancelamentos": self.painel_cancelamentos,
                          "receitas": self.painel_receitas}
 
-        filtro = Cartao(self.painel_ocupacao, "Período")
+        filtro = Cartao(self.painel_ocupacao, "Filtros")
         filtro.pack(fill="x")
         linha = ctk.CTkFrame(filtro, fg_color="transparent")
         linha.pack(fill="x", padx=20, pady=(0, 18))
@@ -81,21 +83,11 @@ class TelaRelatorios(TelaBase):
         botao_primario(linha, "Gerar relatório", self.gerar, 160).grid(
             row=0, column=3, sticky="s", padx=(10, 0))
 
-        cartoes = ctk.CTkFrame(self.painel_ocupacao, fg_color="transparent")
-        cartoes.pack(fill="x", pady=(16, 0))
-        self.cartoes = {}
         # linha 1: resumo financeiro e de ocupação; linha 2: quartos ocupados/disponíveis/bloqueados
-        for linha_cartoes, nomes in enumerate([
-                ["Taxa de ocupação", "Valor reservado", "Reservas no período", "Ticket médio"],
-                ["Quartos ocupados (média/dia)", "Quartos disponíveis (média/dia)",
-                 "Quartos bloqueados (média/dia)"]]):
-            for i, nome in enumerate(nomes):
-                cartoes.grid_columnconfigure(i, weight=1, uniform="resumo")
-                cartao = CartaoResumo(cartoes, nome, "—")
-                cartao.grid(row=linha_cartoes, column=i, sticky="ew",
-                            padx=(0 if i == 0 else 8, 0 if i == len(nomes) - 1 else 8),
-                            pady=(0 if linha_cartoes == 0 else 12, 0))
-                self.cartoes[nome] = cartao
+        self.cartoes = self.painel_ocupacao.criar_indicadores([
+            ["Taxa de ocupação", "Valor reservado", "Reservas no período", "Ticket médio"],
+            ["Quartos ocupados (média/dia)", "Quartos disponíveis (média/dia)",
+             "Quartos bloqueados (média/dia)"]])
 
         # o gráfico e a tabela por quarto dividem o mesmo espaço (o seletor lá em cima escolhe)
         area = ctk.CTkFrame(self.painel_ocupacao, fg_color="transparent")
@@ -109,11 +101,14 @@ class TelaRelatorios(TelaBase):
             ("Noites livres", "livres", 130), ("Ocupação", "ocupacao", 110),
             ("Valor reservado", "receita", 140)], altura=230)
         self.tabela_quartos.pack(fill="both", expand=True, padx=10, pady=(6, 4))
-        ctk.CTkLabel(quartos, anchor="w", font=fonte(12), text_color=COR_TEXTO_SUAVE,
+        self.painel_ocupacao.registrar_tabela("Ocupação por quarto", self.tabela_quartos)
+        nota_quartos = ctk.CTkLabel(quartos, anchor="w", font=fonte(12), text_color=COR_TEXTO_SUAVE,
                      text="Ocupação = noites ocupadas ÷ noites não bloqueadas. "
                           "Valor reservado = valor da reserva dividido pelas noites dela, somando só "
                           "as noites dentro do período (o recebido está em 'Demonstrativo de receitas')."
-                     ).pack(anchor="w", padx=14, pady=(0, 6))
+                     )
+        nota_quartos.pack(anchor="w", padx=14, pady=(0, 6))
+        self.painel_ocupacao.registrar_nota(nota_quartos)
         self.canvas = tk.Canvas(grafico, width=LARGURA_GRAFICO, height=ALTURA_GRAFICO,
                                 bg=COR_CARTAO, highlightthickness=0)
         self.canvas.pack(padx=20, pady=(0, 6))
@@ -129,6 +124,11 @@ class TelaRelatorios(TelaBase):
         self.inicio.definir(formatar_data(hoje - timedelta(days=6)))
         self.fim.definir(formatar_data(hoje))
 
+    def _titulo_ocupacao(self):
+        """Título do cabeçalho do painel de ocupação (o seletor pode estar em outro relatório)."""
+        atual = self.visao.valor()
+        return atual if VISOES.get(atual) in ("dia", "quarto") else "Ocupação por dia"
+
     def _trocar_visao(self):
         escolhida = VISOES[self.visao.valor()]
         for painel in self._paineis.values():
@@ -139,6 +139,7 @@ class TelaRelatorios(TelaBase):
             self._paineis[escolhida].atualizar(silencioso=True)
             return
         self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
+        self.painel_ocupacao.definir_titulo(self._titulo_ocupacao())
         for chave, quadro in self._visoes.items():
             if chave == escolhida:
                 quadro.pack(fill="both", expand=True)
@@ -176,6 +177,7 @@ class TelaRelatorios(TelaBase):
                 messagebox.showwarning("Período inválido", str(erro))
             return
 
+        self.painel_ocupacao.marcar_emissao(inicio, fim, titulo=self._titulo_ocupacao())
         self.cartoes["Taxa de ocupação"].atualizar(formatar_percentual(resumo["taxa_ocupacao"]))
         self.cartoes["Valor reservado"].atualizar(formatar_moeda(resumo["faturamento"]))
         self.cartoes["Reservas no período"].atualizar(resumo["reservas"])

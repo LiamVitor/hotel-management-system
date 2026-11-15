@@ -19,10 +19,15 @@ class CartaoResumo(Cartao):
 
     def __init__(self, master, titulo, valor="0", cor_valor=COR_TEXTO, tamanho_valor=28):
         super().__init__(master)
+        self.titulo = titulo
         ctk.CTkLabel(self, text=titulo, font=fonte(13), text_color=COR_TEXTO_SUAVE
                      ).pack(anchor="w", padx=20, pady=(16, 0))
         self._valor = ctk.CTkLabel(self, text=valor, font=fonte(tamanho_valor, True), text_color=cor_valor)
         self._valor.pack(anchor="w", padx=20, pady=(2, 16))
+
+    def texto(self):
+        """O que está escrito no cartão agora."""
+        return self._valor.cget("text")
 
     def atualizar(self, valor, cor=None):
         """Troca o número; cor (opcional) muda também a cor dele."""

@@ -10,8 +10,9 @@ from src.utils.sessao import Sessao
 from ui.componentes.botoes import botao_secundario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao, CampoTexto
-from ui.componentes.cartao import Cartao, CartaoResumo
+from ui.componentes.cartao import Cartao
 from ui.componentes.janela_vencimento import abrir_vencimento
+from ui.componentes.painel_relatorio import PainelRelatorio
 from ui.componentes.tabela import Tabela
 from ui.estilos import COR_TEXTO, COR_TEXTO_SUAVE, VERMELHO, fonte
 
@@ -20,13 +21,15 @@ COLUNAS = [("Reserva", "reserva", 70), ("Hóspede", "hospede", 180), ("Total", "
            ("Situação", "situacao", 150)]
 
 
-class PainelContasReceber(ctk.CTkFrame):
+class PainelContasReceber(PainelRelatorio):
+    TITULO = "Contas a receber"
+    ROTULO_PERIODO = "Vencimento"
+
     def __init__(self, master, servicos):
-        super().__init__(master, fg_color="transparent")
-        self.servicos = servicos
+        super().__init__(master, servicos)
         self._contas = {}          # reserva_id -> ContaReceber da lista na tela
 
-        filtro = Cartao(self, "Contas a receber")
+        filtro = Cartao(self, "Filtros")
         filtro.pack(fill="x")
         linha = ctk.CTkFrame(filtro, fg_color="transparent")
         linha.pack(fill="x", padx=20, pady=(0, 18))
@@ -40,15 +43,8 @@ class PainelContasReceber(ctk.CTkFrame):
             campo.grid(row=0, column=coluna, sticky="ew",
                        padx=(0 if coluna == 0 else 8, 0 if coluna == 3 else 8))
 
-        cartoes = ctk.CTkFrame(self, fg_color="transparent")
-        cartoes.pack(fill="x", pady=(16, 0))
-        self.cartoes = {}
-        for i, nome in enumerate(["Total a receber", "Vencido", "A vencer", "Reservas em aberto"]):
-            cartoes.grid_columnconfigure(i, weight=1, uniform="resumo")
-            cartao = CartaoResumo(cartoes, nome, "—")
-            cartao.grid(row=0, column=i, sticky="ew",
-                        padx=(0 if i == 0 else 8, 0 if i == 3 else 8))
-            self.cartoes[nome] = cartao
+        self.cartoes = self.criar_indicadores(
+            ["Total a receber", "Vencido", "A vencer", "Reservas em aberto"])
 
         lista = Cartao(self)
         lista.pack(fill="both", expand=True, pady=(16, 0))
@@ -60,11 +56,13 @@ class PainelContasReceber(ctk.CTkFrame):
                                  "definido, vale a data de entrada. Selecione uma reserva para "
                                  "alterar o vencimento.")
         self.lbl_info.pack(side="left")
+        self.registrar_nota(self.lbl_info)
         if Sessao.pode("pagamentos.registrar"):
             botao_secundario(rodape, "Alterar vencimento", self._alterar_vencimento, 170
                              ).pack(side="right")
         self.tabela = Tabela(lista, COLUNAS, altura=150)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(16, 8))
+        self.registrar_tabela("Contas a receber", self.tabela)
 
         self.situacao.definir(CONTAS_EM_ABERTO)
 
@@ -83,15 +81,16 @@ class PainelContasReceber(ctk.CTkFrame):
 
     def atualizar(self, silencioso=False):
         try:
+            de, ate = self._ler(self.venc_de), self._ler(self.venc_ate)
             contas = self.servicos.contas_receber.listar(
-                self.situacao.valor() or CONTAS_EM_ABERTO,
-                self._ler(self.venc_de), self._ler(self.venc_ate), self.busca.valor())
+                self.situacao.valor() or CONTAS_EM_ABERTO, de, ate, self.busca.valor())
             totais = self.servicos.contas_receber.totais(contas)
         except ErroNegocio as erro:
             if not silencioso:
                 messagebox.showwarning("Filtro inválido", str(erro))
             return
         self._contas = {c.reserva_id: c for c in contas}
+        self.marcar_emissao(de, ate)
         self.cartoes["Total a receber"].atualizar(formatar_moeda(totais["total_a_receber"]))
         self.cartoes["Vencido"].atualizar(
             formatar_moeda(totais["total_vencido"]),
