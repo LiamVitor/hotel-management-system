@@ -49,19 +49,25 @@ class TelaRelatorios(TelaBase):
     def __init__(self, master, servicos):
         super().__init__(master, servicos)
 
+        # O relatório é mais alto que a área útil de notebooks; a rolagem fica
+        # restrita ao conteúdo, mantendo o título da tela sempre visível.
+        self.conteudo = ctk.CTkScrollableFrame(
+            self.corpo, fg_color="transparent", corner_radius=0)
+        self.conteudo.pack(fill="both", expand=True)
+
         # o seletor escolhe o relatório; cada um tem o seu painel (filtros, cartões e lista)
-        seletor = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        seletor = ctk.CTkFrame(self.conteudo, fg_color="transparent")
         seletor.pack(fill="x")
         self.visao = CampoSelecao(seletor, "Relatório", list(VISOES), self._trocar_visao)
         self.visao.caixa.configure(width=280)
         self.visao.pack(anchor="w")
-        self.painel_ocupacao = PainelRelatorio(self.corpo, self.servicos)    # cabeçalho padrão no topo
+        self.painel_ocupacao = PainelRelatorio(self.conteudo, self.servicos)    # cabeçalho padrão no topo
         self.painel_ocupacao.definir_titulo(self._titulo_ocupacao())
         self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
-        self.painel_contas = PainelContasReceber(self.corpo, self.servicos)
-        self.painel_demonstrativo = PainelDemonstrativo(self.corpo, self.servicos)
-        self.painel_cancelamentos = PainelCancelamentos(self.corpo, self.servicos)
-        self.painel_receitas = PainelReceitas(self.corpo, self.servicos)
+        self.painel_contas = PainelContasReceber(self.conteudo, self.servicos)
+        self.painel_demonstrativo = PainelDemonstrativo(self.conteudo, self.servicos)
+        self.painel_cancelamentos = PainelCancelamentos(self.conteudo, self.servicos)
+        self.painel_receitas = PainelReceitas(self.conteudo, self.servicos)
         # relatórios que têm painel próprio (os demais usam o painel de ocupação)
         self._paineis = {"contas": self.painel_contas,
                          "demonstrativo": self.painel_demonstrativo,
@@ -109,9 +115,12 @@ class TelaRelatorios(TelaBase):
                      )
         nota_quartos.pack(anchor="w", padx=14, pady=(0, 6))
         self.painel_ocupacao.registrar_nota(nota_quartos)
-        self.canvas = tk.Canvas(grafico, width=LARGURA_GRAFICO, height=ALTURA_GRAFICO,
+        self._barras = []
+        self._granularidade = GRANULARIDADE_DIA
+        self.canvas = tk.Canvas(grafico, width=600, height=ALTURA_GRAFICO,
                                 bg=COR_CARTAO, highlightthickness=0)
-        self.canvas.pack(padx=20, pady=(0, 6))
+        self.canvas.pack(fill="x", expand=True, padx=20, pady=(0, 6))
+        self.canvas.bind("<Configure>", self._ao_redimensionar_grafico)
         self.lbl_legenda = ctk.CTkLabel(grafico, text="", font=fonte(12),
                                         text_color=COR_TEXTO_SUAVE, anchor="w")
         self.lbl_legenda.pack(anchor="w", padx=20, pady=(0, 14))
@@ -190,25 +199,32 @@ class TelaRelatorios(TelaBase):
             f"{totais['media_bloqueados']:.1f}")
         self.tabela_quartos.carregar(self.servicos.linhas_ocupacao_quartos(resumo))
         self.lbl_legenda.configure(text=LEGENDA_BARRAS[resumo["granularidade"]])
-        self._desenhar(resumo["barras"], resumo["granularidade"])
+        self._barras = resumo["barras"]
+        self._granularidade = resumo["granularidade"]
+        self._desenhar(self._barras, self._granularidade)
+
+    def _ao_redimensionar_grafico(self, _evento=None):
+        if hasattr(self, "_barras"):
+            self._desenhar(self._barras, self._granularidade)
 
     def _desenhar(self, barras, granularidade):
         c = self.canvas
         c.delete("all")
+        largura = max(420, c.winfo_width())
         esquerda, base, topo = 44, 28, 12
         altura_util = ALTURA_GRAFICO - base - topo
         fonte_eixo = (FONTE_FAMILIA, 9)
 
         for pct in (0, 25, 50, 75, 100):
             y = topo + altura_util * (1 - pct / 100)
-            c.create_line(esquerda, y, LARGURA_GRAFICO, y, fill=COR_BORDA)
+            c.create_line(esquerda, y, largura - 12, y, fill=COR_BORDA)
             c.create_text(esquerda - 8, y, text=f"{pct}%", anchor="e",
                           fill=COR_TEXTO_SUAVE, font=fonte_eixo)
 
         n = len(barras)
         if n == 0:
             return
-        faixa = (LARGURA_GRAFICO - esquerda - 10) / n
+        faixa = (largura - esquerda - 22) / n
         largura_barra = min(44, faixa * 0.6)
         passo_rotulo = max(1, math.ceil(LARGURA_ROTULO / faixa))   # pula rótulos que não cabem
         formato_rotulo = "%m/%y" if granularidade == GRANULARIDADE_MES else "%d/%m"

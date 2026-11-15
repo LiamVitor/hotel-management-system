@@ -12,9 +12,9 @@ class TelaBase(ctk.CTkFrame):
         super().__init__(master, fg_color=COR_FUNDO, corner_radius=0)
         self.servicos = servicos
         ctk.CTkLabel(self, text=self.titulo, font=fonte(24, True), text_color=COR_TEXTO
-                     ).pack(anchor="w", padx=32, pady=(28, 16))
+                     ).pack(anchor="w", padx=28, pady=(18, 10))
         self.corpo = ctk.CTkFrame(self, fg_color="transparent")
-        self.corpo.pack(fill="both", expand=True, padx=32, pady=(0, 24))
+        self.corpo.pack(fill="both", expand=True, padx=28, pady=(0, 16))
 
     def ao_exibir(self):
         """Chamado toda vez que a tela aparece. As telas sobrescrevem para recarregar dados."""

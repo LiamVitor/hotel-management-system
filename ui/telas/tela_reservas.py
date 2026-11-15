@@ -118,8 +118,9 @@ class TelaReservas(TelaBase):
                          ).pack(side="left", padx=(10, 0))
         botao_secundario(acoes, "Detalhes da reserva", self.abrir_detalhes, 160
                          ).pack(side="left", padx=(10, 0))
-        self.lbl_filtro = ctk.CTkLabel(acoes, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
-        self.lbl_filtro.pack(side="left", padx=14)
+        self.lbl_filtro = ctk.CTkLabel(lista, text="", font=fonte(12),
+                                       text_color=COR_TEXTO_SUAVE, anchor="e")
+        self.lbl_filtro.pack(fill="x", padx=20, pady=(0, 6))
 
         self.tabela = Tabela(lista, COLUNAS, altura=110, ao_duplo_clique=self.abrir_pagamentos)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))

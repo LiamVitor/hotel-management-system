@@ -36,8 +36,13 @@ class App(ctk.CTk):
         configurar_tema()
         super().__init__()
         self.title("Pousada — Gestão de Hotel")
-        self.geometry("1280x800")
-        self.minsize(1280, 800)
+        # Usa a área útil do monitor sem impor um tamanho maior que a tela.
+        largura_tela = self.winfo_screenwidth()
+        altura_tela = self.winfo_screenheight()
+        largura = min(1280, max(960, largura_tela - 80))
+        altura = min(800, max(620, altura_tela - 80))
+        self.geometry(f"{largura}x{altura}")
+        self.minsize(min(960, largura_tela), min(620, altura_tela))
         self.deslogou = False   # True quando a pessoa clicou em "Sair" (e não fechou a janela)
 
         self.servicos = Servicos()

@@ -9,7 +9,7 @@ LARGURA_ACAO = 140
 class Tabela(ctk.CTkFrame):
     """Tabela com cabeçalho cinza, linhas alternadas e seleção por clique.
 
-    colunas: lista de (titulo, chave, largura_em_pixels)
+    colunas: lista de (titulo, chave, peso_de_largura)
     acao:    opcional, (texto_do_botao, funcao(linha)) — um botão em cada linha
     ao_duplo_clique: opcional, funcao(linha) chamada ao clicar duas vezes numa linha
     Cada linha é um dicionário; as chaves das colunas são buscadas nele.
@@ -30,18 +30,28 @@ class Tabela(ctk.CTkFrame):
         cabecalho = ctk.CTkFrame(self, fg_color=COR_CABECALHO, corner_radius=0, height=36)
         cabecalho.pack(fill="x", padx=1, pady=(1, 0))
         cabecalho.pack_propagate(False)
-        for titulo, _chave, largura in colunas:
-            ctk.CTkLabel(cabecalho, text=titulo, width=largura, anchor="w",
+        self._configurar_colunas(cabecalho, incluir_acao=bool(acao))
+        for indice, (titulo, _chave, _largura) in enumerate(colunas):
+            ctk.CTkLabel(cabecalho, text=titulo, anchor="w",
                          font=fonte(12, True), text_color=COR_TEXTO_SUAVE
-                         ).pack(side="left", padx=(12, 0))
+                         ).grid(row=0, column=indice, sticky="ew", padx=(10, 4))
         if acao:
-            ctk.CTkLabel(cabecalho, text="Ação", width=LARGURA_ACAO, anchor="w",
+            ctk.CTkLabel(cabecalho, text="Ação", anchor="w",
                          font=fonte(12, True), text_color=COR_TEXTO_SUAVE
-                         ).pack(side="left", padx=(12, 0))
+                         ).grid(row=0, column=len(colunas), sticky="ew", padx=(10, 4))
 
         self.lista = ctk.CTkScrollableFrame(self, fg_color=COR_CARTAO, corner_radius=0,
                                             height=altura)
         self.lista.pack(fill="both", expand=True, padx=1, pady=(0, 1))
+
+    def _configurar_colunas(self, container, incluir_acao=False):
+        """Distribui a largura proporcionalmente; os valores originais viram pesos."""
+        for indice, (_titulo, _chave, proporcao) in enumerate(self.colunas):
+            container.grid_columnconfigure(
+                indice, weight=max(1, int(proporcao)), minsize=58, uniform="colunas")
+        if incluir_acao:
+            container.grid_columnconfigure(
+                len(self.colunas), weight=max(1, LARGURA_ACAO), minsize=92)
 
     def carregar(self, linhas):
         for filho in self.lista.winfo_children():
@@ -59,10 +69,11 @@ class Tabela(ctk.CTkFrame):
             if self.ao_duplo_clique:
                 item.bind("<Double-Button-1>", lambda _e, n=i: self._duplo_clique(n))
 
-            for _titulo, chave, largura in self.colunas:
-                rotulo = ctk.CTkLabel(item, text=str(linha.get(chave, "")), width=largura,
+            self._configurar_colunas(item, incluir_acao=bool(self.acao))
+            for indice, (_titulo, chave, _largura) in enumerate(self.colunas):
+                rotulo = ctk.CTkLabel(item, text=str(linha.get(chave, "")),
                                       anchor="w", font=fonte(12), text_color=COR_TEXTO)
-                rotulo.pack(side="left", padx=(12, 0))
+                rotulo.grid(row=0, column=indice, sticky="ew", padx=(10, 4))
                 rotulo.bind("<Button-1>", lambda _e, n=i: self._selecionar(n))
                 if self.ao_duplo_clique:
                     rotulo.bind("<Double-Button-1>", lambda _e, n=i: self._duplo_clique(n))
@@ -73,7 +84,8 @@ class Tabela(ctk.CTkFrame):
                               corner_radius=6, fg_color=AZUL, hover_color=AZUL_HOVER,
                               font=fonte(12, True),
                               command=lambda l=linha, f=funcao: f(l)
-                              ).pack(side="left", padx=(12, 0))
+                              ).grid(row=0, column=len(self.colunas), sticky="ew",
+                                     padx=(8, 4), pady=4)
 
             self._itens.append((item, fundo))
 

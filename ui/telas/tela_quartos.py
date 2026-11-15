@@ -74,7 +74,10 @@ class TelaQuartos(TelaBase):
         self.tabela = Tabela(lista, COLUNAS, altura=150)
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
-        self.limpar()
+        # Os campos já nascem vazios; inicialize apenas os seletores sem
+        # executar limpar(), que também altera o foco da janela.
+        self.tipo.definir(TIPOS_QUARTO[0])
+        self.status.definir(QUARTO_DISPONIVEL)
 
     def _montar_filtros(self, lista):
         filtros = ctk.CTkFrame(lista, fg_color="transparent")
