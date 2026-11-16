@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from src.models.pagamento import Pagamento
 from src.services.bloqueio_quarto_service import BloqueioQuartoService
 from src.services.caixa_service import CaixaService
+from src.services.checkin_service import CheckinCheckoutService
 from src.services.conta_receber_service import ContaReceberService
 from src.services.demonstrativo_receitas_service import DemonstrativoReceitasService
 from src.services.demonstrativo_service import DemonstrativoFinanceiroService
@@ -42,6 +43,7 @@ class Servicos:
         self.relatorio_cancelamentos = RelatorioCancelamentosService()
         self.usuarios = UsuarioService()
         self.inicio = InicioService()
+        self.checkin = CheckinCheckoutService()
 
     def linhas_reservas(self, reservas):
         """Converte reservas em dicionários prontos para as tabelas."""
@@ -69,7 +71,9 @@ class Servicos:
                 "situacao": r.situacao,
                 # datas e horários REAIS (as de cima, entrada e saida, são as previstas)
                 "checkin_real": formatar_data_hora(r.checkin_em),
+                "checkin_real_curto": formatar_data_hora(r.checkin_em, curto=True),
                 "checkout_real": formatar_data_hora(r.checkout_em),
+                "checkout_real_curto": formatar_data_hora(r.checkout_em, curto=True),
                 "criada_em": formatar_data_hora(r.criada_em),
                 "cancelada_em": formatar_data_hora(r.cancelada_em),
                 "noshow_em": formatar_data_hora(r.noshow_em),

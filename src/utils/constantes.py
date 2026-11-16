@@ -87,3 +87,7 @@ ALERTA_QUARTOS_INDISPONIVEIS = "quartos_indisponiveis"
 NIVEL_CRITICO = "critico"         # precisa de ação hoje
 NIVEL_AVISO = "aviso"             # convém resolver
 NIVEL_INFO = "info"               # só informativo
+
+# Tela de check-in / check-out: tipos de movimento já feito no dia
+MOVIMENTO_CHECKIN = "Check-in"
+MOVIMENTO_CHECKOUT = "Check-out"

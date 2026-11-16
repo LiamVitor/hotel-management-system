@@ -91,9 +91,16 @@ def estilo_badge_status(valor):
         "Inativo": BADGE_CINZA,
         "Entrada": BADGE_VERDE,
         "Saída": BADGE_VERMELHO,
+        "Hoje": BADGE_AZUL,
+        "Sai hoje": BADGE_AMARELO,
+        "Sai amanhã": BADGE_CINZA,
+        "Check-in": BADGE_VERDE,
+        "Check-out": BADGE_AZUL,
     }
     if valor in estilos:
         return estilos[valor]
-    if valor.startswith("Vencida há "):
+    if valor.startswith(("Vencida há ", "Atrasada há ")):
         return BADGE_VERMELHO
+    if valor.startswith("Sai em "):
+        return BADGE_CINZA
     return None
