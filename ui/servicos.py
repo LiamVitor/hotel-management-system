@@ -10,6 +10,7 @@ from src.services.demonstrativo_service import DemonstrativoFinanceiroService
 from src.services.despesa_service import DespesaService
 from src.services.historico_hospedagem_service import HistoricoHospedagemService
 from src.services.hospede_service import HospedeService
+from src.services.inicio_service import InicioService
 from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
 from src.services.pagamento_service import PagamentoService
 from src.services.quarto_service import QuartoService
@@ -40,6 +41,7 @@ class Servicos:
         self.politica_retencao = PoliticaRetencaoService()
         self.relatorio_cancelamentos = RelatorioCancelamentosService()
         self.usuarios = UsuarioService()
+        self.inicio = InicioService()
 
     def linhas_reservas(self, reservas):
         """Converte reservas em dicionários prontos para as tabelas."""
@@ -67,9 +69,7 @@ class Servicos:
                 "situacao": r.situacao,
                 # datas e horários REAIS (as de cima, entrada e saida, são as previstas)
                 "checkin_real": formatar_data_hora(r.checkin_em),
-                "checkin_real_curto": formatar_data_hora(r.checkin_em, curto=True),
                 "checkout_real": formatar_data_hora(r.checkout_em),
-                "checkout_real_curto": formatar_data_hora(r.checkout_em, curto=True),
                 "criada_em": formatar_data_hora(r.criada_em),
                 "cancelada_em": formatar_data_hora(r.cancelada_em),
                 "noshow_em": formatar_data_hora(r.noshow_em),

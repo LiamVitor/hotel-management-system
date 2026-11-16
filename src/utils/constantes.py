@@ -75,3 +75,15 @@ PAGTO_NO_SHOW = "Não compareceu"  # hóspede não veio: também não há saldo 
 
 MOTIVO_REEMBOLSO_MIN = 3
 MOTIVO_REEMBOLSO_MAX = 200
+
+# Tela inicial: quantos dias o gráfico de ocupação prevista mostra e os tipos/níveis de alerta
+DIAS_OCUPACAO_INICIO = 7
+LIMITE_CONTAS_INICIO = 5          # contas a receber listadas na tela inicial
+ALERTA_CHECKIN_ATRASADO = "checkin_atrasado"
+ALERTA_CHECKOUT_ATRASADO = "checkout_atrasado"
+ALERTA_CONTAS_VENCIDAS = "contas_vencidas"
+ALERTA_CAIXA_SEM_SALDO = "caixa_sem_saldo"
+ALERTA_QUARTOS_INDISPONIVEIS = "quartos_indisponiveis"
+NIVEL_CRITICO = "critico"         # precisa de ação hoje
+NIVEL_AVISO = "aviso"             # convém resolver
+NIVEL_INFO = "info"               # só informativo

@@ -18,6 +18,8 @@ AZUL_HOVER = "#1D4ED8"
 VERMELHO = "#DC2626"
 VERMELHO_HOVER = "#B91C1C"
 VERDE = "#16A34A"
+AMARELO = "#F59E0B"
+AZUL_CLARO = "#93C5FD"
 
 # Tamanho do número nos cartões de indicadores de todos os relatórios
 TAMANHO_INDICADOR = 21
@@ -43,6 +45,22 @@ BADGE_VERMELHO = ("#FEE2E2", "#B91C1C")
 BADGE_AMARELO = ("#FEF3C7", "#92400E")
 BADGE_ROXO = ("#F3E8FF", "#7E22CE")
 BADGE_CINZA = ("#F3F4F6", "#4B5563")
+
+
+# Cor sólida de cada situação do quarto (barra de proporção da tela inicial).
+COR_SITUACAO_QUARTO = {
+    "Disponível": VERDE,
+    "Ocupado": AZUL,
+    "Reservado": AMARELO,
+    "Manutenção": VERMELHO,
+}
+
+# Cores dos alertas da tela inicial, por nível (mesmos pares dos badges).
+ESTILO_NIVEL_ALERTA = {
+    "critico": BADGE_VERMELHO,
+    "aviso": BADGE_AMARELO,
+    "info": BADGE_AZUL,
+}
 
 
 def estilo_badge_status(valor):

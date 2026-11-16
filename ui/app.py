@@ -63,6 +63,8 @@ class App(ctk.CTk):
                       for nome in itens_permitidos()}
         for tela in self.telas.values():
             tela.grid(row=0, column=0, sticky="nsew")
+        # a tela inicial tem atalhos para as outras telas
+        self.telas["Início"].definir_navegacao(self.navegar)
 
         self.navegar("Início")
 

@@ -36,6 +36,18 @@ def formatar_data(data):
     return data.strftime("%d/%m/%Y")
 
 
+DIAS_SEMANA = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
+               "sexta-feira", "sábado", "domingo"]
+DIAS_SEMANA_CURTO = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+         "setembro", "outubro", "novembro", "dezembro"]
+
+
+def formatar_data_extenso(data):
+    """'domingo, 15 de novembro de 2026' (não depende do idioma do sistema operacional)."""
+    return f"{DIAS_SEMANA[data.weekday()]}, {data.day} de {MESES[data.month - 1]} de {data.year}"
+
+
 def formatar_data_hora(valor, curto=False):
     """'08/11/2026 14:32' (ou '08/11 14:32' se curto). '—' quando não há data/hora."""
     if valor is None:
