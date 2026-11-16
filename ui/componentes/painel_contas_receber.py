@@ -14,7 +14,7 @@ from ui.componentes.cartao import Cartao
 from ui.componentes.janela_vencimento import abrir_vencimento
 from ui.componentes.painel_relatorio import PainelRelatorio
 from ui.componentes.tabela import Tabela
-from ui.estilos import COR_TEXTO, COR_TEXTO_SUAVE, VERMELHO, fonte
+from ui.estilos import COR_TEXTO, COR_TEXTO_SUAVE, VERMELHO, estilo_badge_status, fonte
 
 COLUNAS = [("Reserva", "reserva", 70), ("Hóspede", "hospede", 180), ("Total", "total", 105),
            ("Pago", "pago", 105), ("Saldo pendente", "saldo", 120), ("Vencimento", "vencimento", 100),
@@ -60,7 +60,8 @@ class PainelContasReceber(PainelRelatorio):
         if Sessao.pode("pagamentos.registrar"):
             botao_secundario(rodape, "Alterar vencimento", self._alterar_vencimento, 170
                              ).pack(side="right")
-        self.tabela = Tabela(lista, COLUNAS, altura=150)
+        self.tabela = Tabela(lista, COLUNAS, altura=150,
+                             badges={"situacao": estilo_badge_status})
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(16, 8))
         self.registrar_tabela("Contas a receber", self.tabela)
 

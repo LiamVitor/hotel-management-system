@@ -12,17 +12,21 @@ class Tabela(ctk.CTkFrame):
     colunas: lista de (titulo, chave, peso_de_largura)
     acao:    opcional, (texto_do_botao, funcao(linha)) — um botão em cada linha
     ao_duplo_clique: opcional, funcao(linha) chamada ao clicar duas vezes numa linha
+    badges: opcional, {chave_coluna: mapa_de_valores_ou_resolver_de_estilo}
     Cada linha é um dicionário; as chaves das colunas são buscadas nele.
     """
 
     def __init__(self, master, colunas, altura=200, acao=None, ao_selecionar=None,
-                 ao_duplo_clique=None):
+                 ao_duplo_clique=None, badges=None):
         super().__init__(master, fg_color=COR_CARTAO, border_width=1,
                          border_color=COR_BORDA, corner_radius=8)
         self.colunas = colunas
         self.acao = acao
         self.ao_selecionar = ao_selecionar
         self.ao_duplo_clique = ao_duplo_clique
+        # Mapeia a chave da coluna para um resolver de estilo ou mapa de valores.
+        # Ex.: {"situacao": {"Confirmada": ("#DBEAFE", "#1D4ED8")}}
+        self.badges = badges or {}
         self._linhas = []
         self._itens = []
         self._indice = None
@@ -71,9 +75,18 @@ class Tabela(ctk.CTkFrame):
 
             self._configurar_colunas(item, incluir_acao=bool(self.acao))
             for indice, (_titulo, chave, _largura) in enumerate(self.colunas):
-                rotulo = ctk.CTkLabel(item, text=str(linha.get(chave, "")),
-                                      anchor="w", font=fonte(12), text_color=COR_TEXTO)
-                rotulo.grid(row=0, column=indice, sticky="ew", padx=(10, 4))
+                valor = str(linha.get(chave, ""))
+                estilo = self._estilo_badge(chave, valor)
+                if estilo:
+                    rotulo = ctk.CTkLabel(
+                        item, text=valor, anchor="center", font=fonte(11, True),
+                        text_color=estilo[1], fg_color=estilo[0],
+                        corner_radius=8, height=24)
+                    rotulo.grid(row=0, column=indice, sticky="w", padx=(10, 4))
+                else:
+                    rotulo = ctk.CTkLabel(item, text=valor, anchor="w",
+                                          font=fonte(12), text_color=COR_TEXTO)
+                    rotulo.grid(row=0, column=indice, sticky="ew", padx=(10, 4))
                 rotulo.bind("<Button-1>", lambda _e, n=i: self._selecionar(n))
                 if self.ao_duplo_clique:
                     rotulo.bind("<Double-Button-1>", lambda _e, n=i: self._duplo_clique(n))
@@ -88,6 +101,20 @@ class Tabela(ctk.CTkFrame):
                                      padx=(8, 4), pady=4)
 
             self._itens.append((item, fundo))
+
+    def _estilo_badge(self, chave, valor):
+        """Resolve o estilo visual configurado para uma célula; None mantém texto comum."""
+        configuracao = self.badges.get(chave)
+        if configuracao is None:
+            return None
+        estilo = configuracao(valor) if callable(configuracao) else configuracao.get(valor)
+        if not estilo:
+            return None
+        if isinstance(estilo, dict):
+            fundo = estilo.get("fg_color")
+            texto = estilo.get("text_color")
+            return (fundo, texto) if fundo and texto else None
+        return estilo if isinstance(estilo, (tuple, list)) and len(estilo) == 2 else None
 
     def _selecionar(self, indice):
         if self._indice is not None and self._indice < len(self._itens):

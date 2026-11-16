@@ -8,7 +8,7 @@ from src.services.reserva_regras import (calcular_diarias, calcular_total, pode_
                                          validar_capacidade, validar_periodo)
 from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
 from ui.componentes.campo_data import CampoData
-from ui.componentes.campos import CampoTexto, reformatar_entrada
+from ui.componentes.campos import CampoSelecao, CampoTexto
 from ui.componentes.cartao import Cartao
 from ui.componentes.janela_cancelamento import abrir_cancelamento
 from ui.componentes.janela_detalhes_reserva import abrir_detalhes
@@ -17,13 +17,13 @@ from ui.componentes.janela_reembolso import abrir_reembolso
 from ui.componentes.seletor import CampoSeletor, JanelaSelecao
 from ui.componentes.seletor_hospede import CampoSeletorHospede
 from ui.componentes.tabela import Tabela
-from ui.estilos import (AZUL, COR_BORDA_CAMPO, COR_SELECAO, COR_TEXTO, COR_TEXTO_SUAVE, VERDE,
-                        VERMELHO, fonte)
+from ui.estilos import (AZUL, COR_TEXTO, COR_TEXTO_SUAVE, VERDE, VERMELHO,
+                        estilo_badge_status, fonte)
 from ui.telas.tela_base import TelaBase
 from src.utils.constantes import QUARTO_MANUTENCAO, RESERVA_NO_SHOW, SITUACOES_RESERVA
 from src.utils.filtros import normalizar_texto
 from src.utils.sessao import Sessao
-from src.utils.formatacao import formatar_data, formatar_moeda, ler_data, mascara_data
+from src.utils.formatacao import formatar_data, formatar_moeda, ler_data
 
 COLUNAS = [("Código", "codigo", 66), ("Hóspede", "hospede", 190), ("Quarto", "quarto", 62),
            ("Entrada", "entrada", 95), ("Saída", "saida", 95), ("Total", "total", 110),
@@ -122,44 +122,34 @@ class TelaReservas(TelaBase):
                                        text_color=COR_TEXTO_SUAVE, anchor="e")
         self.lbl_filtro.pack(fill="x", padx=20, pady=(0, 6))
 
-        self.tabela = Tabela(lista, COLUNAS, altura=110, ao_duplo_clique=self.abrir_pagamentos)
+        self.tabela = Tabela(lista, COLUNAS, altura=110, ao_duplo_clique=self.abrir_pagamentos,
+                             badges={"situacao": estilo_badge_status,
+                                     "pagamento": estilo_badge_status})
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
     def _montar_filtros(self, lista):
         filtros = ctk.CTkFrame(lista, fg_color="transparent")
         filtros.pack(fill="x", padx=20, pady=(0, 10))
+        filtros.grid_columnconfigure(0, weight=3)
+        filtros.grid_columnconfigure((1, 2, 3), weight=1, uniform="filtro")
+        
+        self.busca = CampoTexto(
+            filtros, "Pesquisar", "Hóspede, CPF, quarto ou código",
+            self.atualizar_tabela)
+        self.filtro_situacao = CampoSelecao(
+            filtros, "Status", [TODAS, *SITUACOES_RESERVA], self.atualizar_tabela)
+        self.filtro_situacao.definir(TODAS)
 
-        self.busca = self._entrada_filtro(filtros, "Hóspede, CPF, quarto ou código", 280)
-        self.filtro_situacao = ctk.CTkComboBox(
-            filtros, values=[TODAS, *SITUACOES_RESERVA], state="readonly", width=130, height=36,
-            command=lambda _v: self.atualizar_tabela(), fg_color="white",
-            border_color=COR_BORDA_CAMPO, button_color=COR_BORDA_CAMPO,
-            button_hover_color="#9CA3AF", text_color=COR_TEXTO, dropdown_fg_color="white",
-            dropdown_text_color=COR_TEXTO, dropdown_hover_color=COR_SELECAO, font=fonte(13))
-        self.filtro_situacao.set(TODAS)
-        self.filtro_situacao.pack(side="left", padx=(0, 10))
+        self.filtro_de = CampoData(filtros, "De", self.atualizar_tabela)
+        self.filtro_ate = CampoData(filtros, "Até", self.atualizar_tabela)
 
-        ctk.CTkLabel(filtros, text="Período", font=fonte(12, True), text_color=COR_TEXTO_SUAVE
-                     ).pack(side="left", padx=(4, 8))
-        self.filtro_de = self._entrada_filtro(filtros, "dd/mm/aaaa", 110, mascara_data, 0)
-        ctk.CTkLabel(filtros, text="até", font=fonte(12), text_color=COR_TEXTO_SUAVE
-                     ).pack(side="left", padx=(0, 8))
-        self.filtro_ate = self._entrada_filtro(filtros, "dd/mm/aaaa", 110, mascara_data)
-        botao_secundario(filtros, "Limpar filtros", self.limpar_filtros, 120).pack(side="left")
+        for coluna, campo in enumerate((self.busca, self.filtro_situacao,
+                                        self.filtro_de, self.filtro_ate)):
+            campo.grid(row=0, column=coluna, sticky="ew",
+                       padx=(0 if coluna == 0 else 5, 0 if coluna == 3 else 5))
 
-    def _entrada_filtro(self, pai, placeholder, largura, mascara=None, espaco_direita=10):
-        entrada = ctk.CTkEntry(pai, placeholder_text=placeholder, width=largura, height=36,
-                               fg_color="white", border_color=COR_BORDA_CAMPO,
-                               text_color=COR_TEXTO, placeholder_text_color="#9CA3AF",
-                               font=fonte(13))
-        entrada.pack(side="left", padx=(0, espaco_direita))
-
-        def ao_digitar(_evento=None):
-            if mascara:
-                reformatar_entrada(entrada, mascara)
-            self.atualizar_tabela()
-        entrada.bind("<KeyRelease>", ao_digitar)
-        return entrada
+        botao_secundario(filtros, "Limpar filtros", self.limpar_filtros, 120
+                         ).grid(row=0, column=4, sticky="s", padx=(8, 0))
 
     # ---------- datas ----------
     def _menor_data_de_saida(self):
@@ -242,16 +232,21 @@ class TelaReservas(TelaBase):
             else:
                 self.quarto.definir(q.id, self._texto_quarto(q), notificar=False)
 
-    def _ler_data_filtro(self, entrada):
-        """Data do filtro, ou None enquanto a pessoa ainda está digitando."""
-        texto = entrada.get().strip()
-        return ler_data(texto) if len(texto) == 10 else None
+    def _ler_data_filtro(self, campo):
+        """Data do filtro; ignora campos vazios/incompletos e rejeita datas inválidas."""
+        texto = campo.valor()
+        if len(texto) < 10:
+            return None
+        data = campo.data()
+        if data is None:
+            raise ErroNegocio("Informe uma data válida no formato dd/mm/aaaa.")
+        return data
 
     def atualizar_tabela(self):
         try:
-            situacao = self.filtro_situacao.get()
+            situacao = self.filtro_situacao.valor()
             reservas = self.servicos.reservas.pesquisar(
-                self.busca.get(), "" if situacao in ("", TODAS) else situacao,
+                self.busca.valor(), "" if situacao in ("", TODAS) else situacao,
                 self._ler_data_filtro(self.filtro_de), self._ler_data_filtro(self.filtro_ate))
         except (ValueError, ErroNegocio) as erro:
             self.lbl_filtro.configure(text=str(erro), text_color=VERMELHO)
@@ -261,9 +256,10 @@ class TelaReservas(TelaBase):
         self.tabela.carregar(self.servicos.linhas_reservas(reservas))
 
     def limpar_filtros(self):
-        for entrada in (self.busca, self.filtro_de, self.filtro_ate):
-            entrada.delete(0, "end")
-        self.filtro_situacao.set(TODAS)
+        self.busca.limpar()
+        self.filtro_de.limpar()
+        self.filtro_ate.limpar()
+        self.filtro_situacao.definir(TODAS)
         self.winfo_toplevel().focus_set()   # devolve o texto de exemplo aos campos
         self.atualizar_tabela()
 

@@ -10,7 +10,7 @@ from ui.componentes.cartao import Cartao
 from ui.componentes.janela_bloqueios import abrir_bloqueios
 from ui.componentes.janela_confirmacao import confirmar_alteracoes
 from ui.componentes.tabela import Tabela
-from ui.estilos import COR_TEXTO_SUAVE, VERMELHO, fonte
+from ui.estilos import COR_TEXTO_SUAVE, VERMELHO, estilo_badge_status, fonte
 from ui.telas.tela_base import TelaBase
 from src.utils.constantes import QUARTO_DISPONIVEL, SITUACOES_QUARTO, TIPOS_QUARTO
 from src.utils.formatacao import formatar_moeda
@@ -71,7 +71,9 @@ class TelaQuartos(TelaBase):
         self.lbl_filtro = ctk.CTkLabel(acoes, text="", font=fonte(12), text_color=COR_TEXTO_SUAVE)
         self.lbl_filtro.pack(side="left", padx=10)
 
-        self.tabela = Tabela(lista, COLUNAS, altura=150)
+        self.tabela = Tabela(
+            lista, COLUNAS, altura=150,
+            badges={"situacao": estilo_badge_status})
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
         # Os campos já nascem vazios; inicialize apenas os seletores sem

@@ -14,7 +14,7 @@ from ui.componentes.campos import CampoSelecao
 from ui.componentes.cartao import Cartao, CartaoResumo
 from ui.componentes.janela_saldo_inicial import abrir_saldo_inicial
 from ui.componentes.tabela import Tabela
-from ui.estilos import COR_TEXTO, COR_TEXTO_SUAVE, VERDE, VERMELHO, fonte
+from ui.estilos import COR_TEXTO, COR_TEXTO_SUAVE, VERDE, VERMELHO, estilo_badge_status, fonte
 from ui.telas.tela_base import TelaBase
 
 COLUNAS = [("Data/hora", "data_hora", 120), ("Tipo", "tipo", 65), ("Origem", "origem", 85),
@@ -62,7 +62,8 @@ class TelaCaixa(TelaBase):
         self.lbl_info = ctk.CTkLabel(historico, text="", font=fonte(12), anchor="w",
                                      justify="left", text_color=COR_TEXTO_SUAVE, wraplength=880)
         self.lbl_info.pack(side="bottom", anchor="w", padx=20, pady=(0, 14))
-        self.tabela = Tabela(historico, COLUNAS, altura=150)
+        self.tabela = Tabela(historico, COLUNAS, altura=150,
+                             badges={"tipo": estilo_badge_status})
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
         self.atalho.definir(ESTE_MES)

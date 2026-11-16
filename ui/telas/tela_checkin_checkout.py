@@ -6,6 +6,7 @@ from src.services.erros import ErroNegocio
 from ui.componentes.cartao import Cartao
 from ui.componentes.janela_pagamentos import abrir_pagamentos
 from ui.componentes.tabela import Tabela
+from ui.estilos import estilo_badge_status
 from ui.telas.tela_base import TelaBase
 from src.utils.constantes import RESERVA_CONFIRMADA, RESERVA_HOSPEDADA
 from src.utils.formatacao import formatar_moeda
@@ -26,8 +27,10 @@ class TelaCheckinCheckout(TelaBase):
 
         cartao_in = Cartao(self.corpo, "Check-ins previstos para hoje")
         cartao_in.pack(fill="both", expand=True)
-        self.tabela_in = Tabela(cartao_in, COLUNAS_CHECKIN, altura=170,
-                                acao=("Fazer check-in", self.fazer_checkin))
+        self.tabela_in = Tabela(
+            cartao_in, COLUNAS_CHECKIN, altura=170,
+            acao=("Fazer check-in", self.fazer_checkin),
+            badges={"situacao": estilo_badge_status})
         self.tabela_in.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
         cartao_out = Cartao(self.corpo, "Hóspedes hospedados")

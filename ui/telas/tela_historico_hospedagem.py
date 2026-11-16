@@ -10,7 +10,7 @@ from ui.componentes.cartao import Cartao, CartaoResumo
 from ui.componentes.janela_detalhes_reserva import abrir_detalhes
 from ui.componentes.seletor_hospede import CampoSeletorHospede
 from ui.componentes.tabela import Tabela
-from ui.estilos import COR_TEXTO_SUAVE, fonte
+from ui.estilos import COR_TEXTO_SUAVE, estilo_badge_status, fonte
 from ui.telas.tela_base import TelaBase
 
 TODAS = "Todas"
@@ -57,9 +57,10 @@ class TelaHistoricoHospedagem(TelaBase):
                                        font=fonte(12), text_color=COR_TEXTO_SUAVE,
                                        wraplength=860)
         self.lbl_resumo.pack(side="bottom", anchor="w", padx=20, pady=(0, 14))
-        self.tabela = Tabela(lista, COLUNAS, altura=200,
-                             ao_duplo_clique=lambda linha: abrir_detalhes(
-                                 self, self.servicos, linha["id"]))
+        self.tabela = Tabela(
+            lista, COLUNAS, altura=200,
+            ao_duplo_clique=lambda linha: abrir_detalhes(self, self.servicos, linha["id"]),
+            badges={"situacao": estilo_badge_status})
         self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
 
         self.situacao.definir(TODAS)
