@@ -1,0 +1,387 @@
+"""Reúne os services usados pelas telas e prepara linhas para as tabelas."""
+from datetime import date, timedelta
+
+from src.models.pagamento import Pagamento
+from src.services.bloqueio_quarto_service import BloqueioQuartoService
+from src.services.caixa_service import CaixaService
+from src.services.checkin_service import CheckinCheckoutService
+from src.services.conta_receber_service import ContaReceberService
+from src.services.demonstrativo_receitas_service import DemonstrativoReceitasService
+from src.services.demonstrativo_service import DemonstrativoFinanceiroService
+from src.services.despesa_service import DespesaService
+from src.services.exportacao_service import ExportacaoService
+from src.services import relatorio_padrao as padrao
+from src.services.historico_hospedagem_service import HistoricoHospedagemService
+from src.services.hospede_service import HospedeService
+from src.services.inicio_service import InicioService
+from src.services.pagamento_regras import saldo_pendente, situacao_pagamento
+from src.services.pagamento_service import PagamentoService
+from src.services.quarto_service import QuartoService
+from src.services.politica_retencao_service import PoliticaRetencaoService
+from src.services.relatorio_cancelamentos_service import RelatorioCancelamentosService
+from src.services.relatorio_reservas_service import (RelatorioMovimentosService,
+                                                      RelatorioReservasService)
+from src.services.relatorio_reservas_regras import situacao_do_horario
+from src.services.reserva_service import ReservaService
+from src.services.usuario_service import UsuarioService
+from src.utils.constantes import (CAIXA_ENTRADA, CONTA_A_VENCER, CONTA_VENCIDA,
+                                  GRANULARIDADE_DIA, GRANULARIDADE_MES, ORIGEM_DESPESA,
+                                  PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA, RESERVA_NO_SHOW)
+from src.utils.formatacao import (formatar_cpf, formatar_data, formatar_data_hora, formatar_moeda,
+                                    formatar_percentual)
+
+
+class Servicos:
+    def __init__(self):
+        self.hospedes = HospedeService()
+        self.quartos = QuartoService()
+        self.bloqueios = BloqueioQuartoService()
+        self.reservas = ReservaService()
+        self.pagamentos = PagamentoService()
+        self.despesas = DespesaService()
+        self.caixa = CaixaService()
+        self.contas_receber = ContaReceberService()
+        self.demonstrativo = DemonstrativoFinanceiroService()
+        self.receitas = DemonstrativoReceitasService()
+        self.historico_hospedagem = HistoricoHospedagemService()
+        self.politica_retencao = PoliticaRetencaoService()
+        self.relatorio_cancelamentos = RelatorioCancelamentosService()
+        self.usuarios = UsuarioService()
+        self.relatorio_reservas = RelatorioReservasService()
+        self.relatorio_movimentos = RelatorioMovimentosService()
+        self.exportacao = ExportacaoService()
+        self.inicio = InicioService()
+        self.checkin = CheckinCheckoutService()
+
+    def linhas_reservas(self, reservas):
+        """Converte reservas em dicionários prontos para as tabelas."""
+        nomes = {h.id: h.nome for h in self.hospedes.listar()}
+        numeros = {q.id: q.numero for q in self.quartos.listar()}
+        totais_pagos = self.pagamentos.totais_por_reserva()
+        linhas = []
+        for r in reservas:
+            pago = totais_pagos.get(r.id, 0.0)
+            cancelada = r.situacao == RESERVA_CANCELADA
+            no_show = r.situacao == RESERVA_NO_SHOW
+            linhas.append({
+                "id": r.id,
+                "codigo": f"{r.id:04d}",
+                "hospede": nomes.get(r.hospede_id, "—"),
+                "quarto": numeros.get(r.quarto_id, "—"),
+                "entrada": formatar_data(r.data_entrada),
+                "saida": formatar_data(r.data_saida),
+                "total": formatar_moeda(r.valor_total),
+                "pago": formatar_moeda(pago),
+                "saldo": formatar_moeda(saldo_pendente(r.valor_total, pago)),
+                "pagamento": (("A reembolsar" if pago > 0 else "—") if cancelada
+                              else ("Valor retido" if pago > 0 else "—") if no_show
+                              else situacao_pagamento(r.valor_total, pago)),
+                "situacao": r.situacao,
+                # datas e horários REAIS (as de cima, entrada e saida, são as previstas)
+                "checkin_real": formatar_data_hora(r.checkin_em),
+                "checkin_real_curto": formatar_data_hora(r.checkin_em, curto=True),
+                "checkout_real": formatar_data_hora(r.checkout_em),
+                "checkout_real_curto": formatar_data_hora(r.checkout_em, curto=True),
+                "criada_em": formatar_data_hora(r.criada_em),
+                "cancelada_em": formatar_data_hora(r.cancelada_em),
+                "noshow_em": formatar_data_hora(r.noshow_em),
+            })
+        return linhas
+
+    def linhas_bloqueios(self, bloqueios):
+        """Converte bloqueios de quarto em dicionários prontos para a tabela."""
+        numeros = {q.id: q.numero for q in self.quartos.listar()}
+        nomes = self.bloqueios.responsaveis(bloqueios)
+        return [{
+            "id": b.id,
+            "quarto": numeros.get(b.quarto_id, "—"),
+            "inicio": formatar_data_hora(b.inicio),
+            "fim": formatar_data_hora(b.fim),
+            "situacao": self.bloqueios.situacao(b),
+            "motivo": b.motivo,
+            "responsavel": nomes.get(b.usuario_id, "—"),
+            "registrado_em": formatar_data_hora(b.criado_em),
+        } for b in bloqueios]
+
+    def linhas_ocupacao_quartos(self, resumo):
+        """Converte o resultado de relatorio_periodo (com bloqueios) em linhas para a tabela.
+
+        Uma linha por quarto e, no fim, a linha "Total" com as somas do período.
+        """
+        def formatar(numero, tipo, d):
+            return {"numero": numero, "tipo": tipo,
+                    "ocupadas": d["noites_ocupadas"], "bloqueadas": d["noites_bloqueadas"],
+                    "livres": d["noites_disponiveis"],
+                    "ocupacao": formatar_percentual(d.get("percentual_ocupacao",
+                                                          d.get("taxa_ocupacao", 0))),
+                    "receita": formatar_moeda(d["receita"])}
+        linhas = [formatar(q["numero"], q["tipo"], q) for q in resumo["quartos"]]
+        if linhas:
+            linhas.append(formatar("Total", "", resumo["totais"]))
+        return linhas
+
+    def linhas_historico_hospedagem(self, itens):
+        """Converte o histórico de um hóspede (ItemHistorico) em dicionários para a tabela."""
+        return [{
+            "id": i.reserva_id,
+            "reserva": f"{i.reserva_id:04d}",
+            "quarto": f"{i.quarto} · {i.tipo_quarto}" if i.tipo_quarto else i.quarto,
+            "entrada": formatar_data(i.data_entrada),
+            "saida": formatar_data(i.data_saida),
+            "noites": i.noites,
+            "total": formatar_moeda(i.valor_total),
+            "pago": formatar_moeda(i.valor_pago),
+            "situacao": i.situacao,
+        } for i in itens]
+
+    def linhas_contas_receber(self, contas):
+        """Converte contas a receber em dicionários prontos para a tabela."""
+        def situacao(c):
+            if c.situacao == CONTA_VENCIDA:
+                return f"Vencida há {c.dias_em_atraso} dia{'s' if c.dias_em_atraso != 1 else ''}"
+            if c.situacao == CONTA_A_VENCER and c.dias_em_atraso == 0 and c.data_vencimento == hoje:
+                return "Vence hoje"
+            return c.situacao
+        hoje = date.today()
+        return [{
+            "id": c.reserva_id,
+            "reserva": f"{c.reserva_id:04d}",
+            "hospede": c.hospede,
+            "total": formatar_moeda(c.valor_total),
+            "pago": formatar_moeda(c.valor_pago),
+            "saldo": formatar_moeda(c.saldo),
+            "vencimento": formatar_data(c.data_vencimento),
+            "situacao": situacao(c),
+        } for c in contas]
+
+    def linhas_cancelamentos(self, registros):
+        """Converte o relatório de cancelamentos e no-show em dicionários para a tabela."""
+        def moeda(valor):
+            return "—" if valor is None else formatar_moeda(valor)
+        return [{
+            "id": r.reserva_id,
+            "reserva": f"{r.reserva_id:04d}",
+            "hospede": r.hospede,
+            "tipo": "No-show" if r.situacao == RESERVA_NO_SHOW else "Cancelamento",
+            "criada_em": formatar_data(r.criada_em.date()) if r.criada_em else "—",
+            "entrada": formatar_data(r.data_entrada),
+            "evento_em": formatar_data_hora(r.evento_em) if r.evento_em else "—",
+            "motivo": r.motivo or "—",
+            "retido": moeda(r.valor_retido),
+            "reembolsado": formatar_moeda(r.reembolsado),
+            "a_reembolsar": moeda(r.a_reembolsar),
+        } for r in registros]
+
+    def linhas_politica_retencao(self, historico):
+        """Converte o histórico da regra de retenção em dicionários para a tabela."""
+        return [{
+            "dias": f"{p.dias_antecedencia} dia(s)",
+            "tardio": formatar_percentual(p.percentual_cancelamento_tardio),
+            "no_show": formatar_percentual(p.percentual_no_show),
+            "definido_em": formatar_data_hora(p.definido_em),
+            "responsavel": nome,
+        } for p, nome in historico]
+
+    def linhas_caixa(self, movimentacoes):
+        """Converte movimentações do caixa em dicionários prontos para a tabela.
+
+        Saídas aparecem com sinal de menos; "saldo" é o do caixa logo depois da movimentação.
+        """
+        return [{
+            "data_hora": formatar_data_hora(m.data_hora) if m.origem != ORIGEM_DESPESA
+                         else formatar_data(m.data_hora),
+            "tipo": m.tipo,
+            "origem": m.origem,
+            "descricao": m.descricao,
+            "responsavel": m.responsavel or "—",
+            "valor": (formatar_moeda(m.valor) if m.tipo == CAIXA_ENTRADA
+                      else "− " + formatar_moeda(m.valor)),
+            "saldo": formatar_moeda(m.saldo_apos),
+        } for m in movimentacoes]
+
+    def linhas_receitas_comparacao(self, comparacao):
+        """Converte a comparação com o período anterior em dicionários prontos para a tabela."""
+        def valor(c, numero):
+            return formatar_moeda(numero) if c.monetario else str(int(numero))
+
+        def variacao(c):
+            sinal = "+" if c.variacao >= 0 else "−"
+            texto = formatar_moeda(abs(c.variacao)) if c.monetario else str(abs(int(c.variacao)))
+            return f"{sinal} {texto}"
+
+        def percentual(c):
+            if c.percentual is None:
+                return "—"
+            return ("+" if c.percentual >= 0 else "−") + formatar_percentual(abs(c.percentual))
+        return [{"indicador": c.indicador, "atual": valor(c, c.atual),
+                 "anterior": valor(c, c.anterior), "variacao": variacao(c),
+                 "percentual": percentual(c)} for c in comparacao]
+
+    def linhas_receitas_forma(self, formas):
+        return [{"forma": f.forma, "qtd": f.qtd_pagamentos,
+                 "bruto": formatar_moeda(f.recebido_bruto),
+                 "reembolsado": formatar_moeda(f.reembolsado),
+                 "recebido": formatar_moeda(f.recebido),
+                 "percentual": formatar_percentual(f.percentual)} for f in formas]
+
+    def linhas_receitas_quarto(self, quartos):
+        return [{"numero": q.numero, "tipo": q.tipo, "qtd": q.qtd_reservas,
+                 "reservado": formatar_moeda(q.reservado),
+                 "recebido": formatar_moeda(q.recebido),
+                 "reembolsado": formatar_moeda(q.reembolsado),
+                 "a_receber": formatar_moeda(q.a_receber)} for q in quartos]
+
+    def linhas_receitas_periodo(self, linhas, mensal=False):
+        """Dia a dia (mensal=False) ou mês a mês (mensal=True) do demonstrativo de receitas."""
+        def rotulo(l):
+            if not mensal:
+                return formatar_data(l.inicio)
+            ultimo = (l.inicio.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+            parcial = l.inicio.day != 1 or l.fim != ultimo
+            return f"{l.inicio:%m/%Y}" + (" (parcial)" if parcial else "")
+        return [{"periodo": rotulo(l), "reservado": formatar_moeda(l.reservado),
+                 "bruto": formatar_moeda(l.recebido_bruto),
+                 "reembolsado": formatar_moeda(l.reembolsado),
+                 "recebido": formatar_moeda(l.recebido)} for l in linhas]
+
+    def linhas_fluxo_caixa(self, fluxo, granularidade):
+        """Converte o fluxo de caixa (FluxoPeriodo) em dicionários prontos para a tabela."""
+        def periodo(f):
+            if granularidade == GRANULARIDADE_DIA:
+                return formatar_data(f.inicio)
+            if granularidade == GRANULARIDADE_MES:
+                return f"{f.inicio:%m/%Y}"
+            return f"{f.inicio:%d/%m} a {f.fim:%d/%m/%Y}"
+        return [{
+            "periodo": periodo(f),
+            "entradas": formatar_moeda(f.entradas),
+            "despesas": formatar_moeda(f.despesas),
+            "reembolsos": formatar_moeda(f.reembolsos),
+            "variacao": ("+ " if f.variacao >= 0 else "− ") + formatar_moeda(abs(f.variacao)),
+            "saldo": formatar_moeda(f.saldo_final),
+        } for f in fluxo]
+
+    def linhas_pagamentos(self, historico):
+        """Converte [(Pagamento, nome de quem lançou)] em dicionários para a tabela.
+
+        Cada linha traz "detalhe" (curto, para a coluna) e "descricao" (completa, mostrada
+        ao selecionar a linha). Pagamentos já reembolsados continuam na lista, com a marcação.
+        """
+        por_id = {p.id: p for p, _ in historico}
+        devolvido = {}
+        for p, _ in historico:
+            if p.tipo == PAGAMENTO_REEMBOLSO and p.pagamento_origem_id:
+                devolvido[p.pagamento_origem_id] = round(
+                    devolvido.get(p.pagamento_origem_id, 0.0) + p.valor, 2)
+
+        linhas = []
+        for p, nome in historico:
+            quando = p.data_hora.strftime("%d/%m/%Y %H:%M")
+            quem = nome or "—"
+            if p.tipo == PAGAMENTO_REEMBOLSO:
+                origem = por_id.get(p.pagamento_origem_id)
+                referencia = (
+                    f"Referente ao pagamento de {origem.data_hora:%d/%m/%Y %H:%M} "
+                    f"({origem.forma}, {formatar_moeda(origem.valor)})."
+                    if origem else "Vinculado à reserva, sem um pagamento específico.")
+                detalhe = p.motivo or ""
+                descricao = (f"Reembolso de {formatar_moeda(p.valor)} em {p.forma}, lançado por "
+                             f"{quem} em {quando}. Motivo: {p.motivo or '—'}. {referencia}")
+                valor = "- " + formatar_moeda(p.valor)
+            else:
+                voltou = devolvido.get(p.id, 0.0)
+                detalhe = f"Reembolsado: {formatar_moeda(voltou)}" if voltou else ""
+                descricao = (f"Pagamento de {formatar_moeda(p.valor)} em {p.forma}, lançado por "
+                             f"{quem} em {quando}.")
+                if voltou:
+                    descricao += (f" Já reembolsado: {formatar_moeda(voltou)} "
+                                  f"(restam {formatar_moeda(p.valor - voltou)}).")
+                valor = formatar_moeda(p.valor)
+            linhas.append({
+                "id": p.id, "data_hora": quando, "valor": valor, "forma": p.forma,
+                "tipo": p.tipo, "responsavel": quem, "detalhe": detalhe, "descricao": descricao,
+            })
+        return linhas
+
+    def linhas_despesas(self, despesas):
+        """Converte despesas em dicionários prontos para a tabela (com nomes em vez de ids)."""
+        categorias = self.despesas.nomes_categorias()
+        responsaveis = self.despesas.nomes_responsaveis(despesas)
+        return [{
+            "id": d.id,
+            "data": formatar_data(d.data),
+            "categoria": categorias.get(d.categoria_id, "—"),
+            "descricao": d.descricao,
+            "valor": formatar_moeda(d.valor),
+            "responsavel": responsaveis.get(d.usuario_id, "—"),
+        } for d in despesas]
+
+    # ---------- relatórios novos e exportação ----------
+    def linhas_reservas_periodo(self, reservas):
+        """Converte o relatório de reservas por período em dicionários para a tabela."""
+        return [{
+            "id": r.reserva_id,
+            "reserva": f"{r.reserva_id:04d}",
+            "hospede": r.hospede,
+            "quarto": r.quarto,
+            "entrada": formatar_data(r.data_entrada),
+            "saida": formatar_data(r.data_saida),
+            "noites": r.noites,
+            "total": formatar_moeda(r.valor_total),
+            "pago": formatar_moeda(r.valor_pago),
+            "situacao": r.situacao,
+        } for r in reservas]
+
+    def linhas_movimentos(self, movimentos):
+        """Converte check-ins e check-outs realizados em dicionários para a tabela."""
+        return [{
+            "id": m.reserva_id,
+            "data_hora": formatar_data_hora(m.data_hora),
+            "tipo": m.tipo,
+            "reserva": f"{m.reserva_id:04d}",
+            "hospede": m.hospede,
+            "quarto": m.quarto,
+            "prevista": formatar_data(m.data_prevista),
+            "horario": situacao_do_horario(m),
+            "responsavel": m.responsavel,
+        } for m in movimentos]
+
+    def linhas_ocupacao_periodo(self, barras, granularidade, fim):
+        """Valores por trás do gráfico de ocupação: um dia, uma semana ou um mês por linha."""
+        linhas = []
+        for dia, pct in barras:
+            if granularidade == GRANULARIDADE_DIA:
+                rotulo = formatar_data(dia)
+            elif granularidade == GRANULARIDADE_MES:
+                ultimo = (dia.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+                parcial = dia.day != 1 or fim < ultimo
+                rotulo = f"{dia:%m/%Y}" + (" (parcial)" if parcial else "")
+            else:
+                rotulo = f"{formatar_data(dia)} a {formatar_data(min(dia + timedelta(days=6), fim))}"
+            linhas.append({"periodo": rotulo, "ocupacao": formatar_percentual(pct)})
+        return linhas
+
+    def documento_historico_hospedagem(self, historico, situacao, colunas):
+        """RelatorioPadrao do histórico de hospedagem de um hóspede (o que a tela mostra).
+
+        situacao: o filtro de situação das reservas ('Todas' ou uma situação). colunas: as da
+        tabela da tela, [(título, chave, largura)].
+        """
+        h, r = historico.hospede, historico.resumo
+        contato = " · ".join(t for t in (formatar_cpf(h.cpf), h.email) if t)
+        partes = [f"Quartos utilizados: {', '.join(r['quartos_utilizados']) or '—'}"]
+        if r["ultima_hospedagem"]:
+            partes.append(f"Última hospedagem: {formatar_data(r['ultima_hospedagem'])}")
+        partes.append(f"{r['reservas']} reserva(s) no total: {r['futuras']} futura(s), "
+                      f"{r['canceladas']} cancelada(s), {r['no_shows']} sem comparecimento")
+        return padrao.montar_relatorio(
+            padrao.montar_cabecalho(f"Histórico de hospedagem — {h.nome}"),
+            [("Hospedagens", r["hospedagens"]), ("Noites hospedadas", r["noites"]),
+             ("Quartos utilizados", len(r["quartos_utilizados"])),
+             ("Total pago", formatar_moeda(r["total_pago"]))],
+            [padrao.montar_tabela("Reservas do hóspede", colunas,
+                                  self.linhas_historico_hospedagem(historico.itens))],
+            ["  ·  ".join(partes) + ". Os indicadores são do histórico completo; a lista "
+             "respeita o filtro de situação."],
+            [("Hóspede", f"{h.nome} ({contato})" if contato else h.nome),
+             ("Situação das reservas", situacao or "Todas")])

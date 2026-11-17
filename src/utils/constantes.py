@@ -1,0 +1,117 @@
+"""Valores fixos usados pelos services e pela interface."""
+
+TIPOS_QUARTO = ["Solteiro", "Casal", "Suíte", "Família"]
+
+QUARTO_DISPONIVEL = "Disponível"
+QUARTO_OCUPADO = "Ocupado"
+QUARTO_RESERVADO = "Reservado"
+QUARTO_MANUTENCAO = "Manutenção"
+SITUACOES_QUARTO = [QUARTO_DISPONIVEL, QUARTO_OCUPADO, QUARTO_RESERVADO, QUARTO_MANUTENCAO]
+
+RESERVA_CONFIRMADA = "Confirmada"
+RESERVA_HOSPEDADA = "Hospedada"
+RESERVA_FINALIZADA = "Finalizada"
+RESERVA_CANCELADA = "Cancelada"
+RESERVA_NO_SHOW = "Não compareceu"   # hóspede não apareceu (no-show)
+SITUACOES_RESERVA = [RESERVA_CONFIRMADA, RESERVA_HOSPEDADA, RESERVA_FINALIZADA,
+                     RESERVA_CANCELADA, RESERVA_NO_SHOW]
+
+MOTIVO_CANCELAMENTO_MIN = 3
+MOTIVO_CANCELAMENTO_MAX = 200
+
+# Relatórios: tamanho máximo do período consultado e como o gráfico agrupa os dias
+MAX_ANOS_RELATORIO = 5
+MAX_DIAS_RELATORIO = 366 * MAX_ANOS_RELATORIO
+GRANULARIDADE_DIA = "dia"
+GRANULARIDADE_SEMANA = "semana"
+GRANULARIDADE_MES = "mês"
+
+# Bloqueio de quarto: a situação é calculada pelas datas (não fica gravada no banco)
+BLOQUEIO_AGENDADO = "Agendado"
+BLOQUEIO_EM_ANDAMENTO = "Em andamento"
+BLOQUEIO_ENCERRADO = "Encerrado"
+MOTIVO_BLOQUEIO_MIN = 3
+MOTIVO_BLOQUEIO_MAX = 200
+
+# Contas a receber: situação financeira de cada reserva e filtros do relatório
+CONTA_QUITADA = "Quitada"          # nada a receber
+CONTA_A_VENCER = "A vencer"        # falta pagar, mas o vencimento ainda não passou
+CONTA_VENCIDA = "Vencida"          # falta pagar e o vencimento já passou
+CONTAS_EM_ABERTO = "Em aberto"     # a vencer + vencidas
+CONTAS_VENCIDAS = "Vencidas"
+CONTAS_A_VENCER = "A vencer"
+CONTAS_QUITADAS = "Quitadas"
+CONTAS_TODAS = "Todas"
+FILTROS_CONTAS = [CONTAS_EM_ABERTO, CONTAS_VENCIDAS, CONTAS_A_VENCER, CONTAS_QUITADAS,
+                  CONTAS_TODAS]
+VENCIMENTO_MAX_DIAS_APOS_SAIDA = 365   # limite para escolher o vencimento
+
+# Retenção em cancelamento e no-show: a administração define a regra (ver PoliticaRetencao)
+RETENCAO_DIAS_MAX = 365
+RELATORIO_CANC_TODOS = "Todos"
+RELATORIO_CANC_CANCELAMENTOS = "Cancelamentos"
+RELATORIO_CANC_NO_SHOWS = "No-shows"
+FILTROS_CANCELAMENTOS = [RELATORIO_CANC_TODOS, RELATORIO_CANC_CANCELAMENTOS,
+                         RELATORIO_CANC_NO_SHOWS]
+
+FORMAS_PAGAMENTO = ["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Transferência"]
+
+PAGAMENTO_NORMAL = "Pagamento"
+PAGAMENTO_REEMBOLSO = "Reembolso"
+
+# Caixa: cada movimentação é uma entrada ou uma saída, vinda de um pagamento, reembolso ou despesa
+CAIXA_ENTRADA = "Entrada"
+CAIXA_SAIDA = "Saída"
+CAIXA_TODAS = "Todas"
+ORIGEM_PAGAMENTO = PAGAMENTO_NORMAL
+ORIGEM_REEMBOLSO = PAGAMENTO_REEMBOLSO
+ORIGEM_DESPESA = "Despesa"
+
+PAGTO_PENDENTE = "Pendente"    # nada pago
+PAGTO_PARCIAL = "Parcial"      # pagou parte, ainda deve
+PAGTO_PAGO = "Pago"            # quitada
+PAGTO_CANCELADA = "Cancelada"  # reserva cancelada: não há saldo a cobrar
+PAGTO_NO_SHOW = "Não compareceu"  # hóspede não veio: também não há saldo a cobrar
+
+MOTIVO_REEMBOLSO_MIN = 3
+MOTIVO_REEMBOLSO_MAX = 200
+
+# Tela inicial: quantos dias o gráfico de ocupação prevista mostra e os tipos/níveis de alerta
+DIAS_OCUPACAO_INICIO = 7
+LIMITE_CONTAS_INICIO = 5          # contas a receber listadas na tela inicial
+ALERTA_CHECKIN_ATRASADO = "checkin_atrasado"
+ALERTA_CHECKOUT_ATRASADO = "checkout_atrasado"
+ALERTA_CONTAS_VENCIDAS = "contas_vencidas"
+ALERTA_CAIXA_SEM_SALDO = "caixa_sem_saldo"
+ALERTA_QUARTOS_INDISPONIVEIS = "quartos_indisponiveis"
+NIVEL_CRITICO = "critico"         # precisa de ação hoje
+NIVEL_AVISO = "aviso"             # convém resolver
+NIVEL_INFO = "info"               # só informativo
+
+# Tela de check-in / check-out: tipos de movimento já feito no dia
+MOVIMENTO_CHECKIN = "Check-in"
+MOVIMENTO_CHECKOUT = "Check-out"
+
+# ---------- exportação de relatórios ----------
+FORMATO_PDF = "pdf"
+FORMATO_EXCEL = "xlsx"
+FORMATOS_EXPORTACAO = [FORMATO_PDF, FORMATO_EXCEL]
+
+# Chave de cada um dos oito relatórios (decide a permissão exigida para exportar)
+REL_OCUPACAO = "ocupacao"
+REL_RESERVAS = "reservas"
+REL_CHECKINS_CHECKOUTS = "checkins_checkouts"
+REL_RECEITAS = "receitas"
+REL_DEMONSTRATIVO = "demonstrativo"
+REL_CONTAS_RECEBER = "contas_receber"
+REL_HISTORICO_HOSPEDAGEM = "historico_hospedagem"
+REL_CANCELAMENTOS = "cancelamentos"
+
+# Relatório de reservas por período (filtro de situação) e de check-ins/check-outs (filtro de tipo);
+# MOVIMENTO_CHECKIN / MOVIMENTO_CHECKOUT já existem acima (tela de check-in/check-out)
+RESERVAS_TODAS = "Todas"
+FILTROS_RESERVAS = [RESERVAS_TODAS, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA, RESERVA_FINALIZADA,
+                    RESERVA_CANCELADA, RESERVA_NO_SHOW]
+MOVIMENTO_TODOS = "Todos"
+FILTROS_MOVIMENTOS = [MOVIMENTO_TODOS, MOVIMENTO_CHECKIN, MOVIMENTO_CHECKOUT]
+

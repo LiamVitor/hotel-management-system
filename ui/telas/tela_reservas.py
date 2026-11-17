@@ -1,0 +1,420 @@
+from datetime import date, timedelta
+from tkinter import messagebox
+
+import customtkinter as ctk
+
+from src.services.erros import ErroNegocio
+from src.services.reserva_regras import (calcular_diarias, calcular_total, pode_cancelar,
+                                         validar_capacidade, validar_periodo)
+from ui.componentes.botoes import botao_perigo, botao_primario, botao_secundario
+from ui.componentes.campo_data import CampoData
+from ui.componentes.campos import CampoSelecao, CampoTexto
+from ui.componentes.cartao import Cartao
+from ui.componentes.janela_cancelamento import abrir_cancelamento
+from ui.componentes.janela_detalhes_reserva import abrir_detalhes
+from ui.componentes.janela_pagamentos import abrir_pagamentos as abrir_janela_pagamentos
+from ui.componentes.janela_reembolso import abrir_reembolso
+from ui.componentes.seletor import CampoSeletor, JanelaSelecao
+from ui.componentes.seletor_hospede import CampoSeletorHospede
+from ui.componentes.tabela import Tabela
+from ui.estilos import (AZUL, COR_TEXTO, COR_TEXTO_SUAVE, VERDE, VERMELHO,
+                        estilo_badge_status, fonte)
+from ui.telas.tela_base import TelaBase
+from src.utils.constantes import QUARTO_MANUTENCAO, RESERVA_NO_SHOW, SITUACOES_RESERVA
+from src.utils.filtros import normalizar_texto
+from src.utils.sessao import Sessao
+from src.utils.formatacao import formatar_data, formatar_moeda, ler_data
+
+COLUNAS = [("Código", "codigo", 66), ("Hóspede", "hospede", 190), ("Quarto", "quarto", 62),
+           ("Entrada", "entrada", 95), ("Saída", "saida", 95), ("Total", "total", 110),
+           ("Status", "situacao", 125), ("Pagamento", "pagamento", 100)]
+
+COLUNAS_SELECAO_QUARTO = [("Número", "numero", 90), ("Tipo", "tipo", 130),
+                          ("Capacidade", "capacidade", 110), ("Diária", "diaria", 130),
+                          ("Status", "situacao", 130)]
+
+TODAS = "Todas"
+
+
+class TelaReservas(TelaBase):
+    titulo = "Reservas"
+
+    def __init__(self, master, servicos):
+        super().__init__(master, servicos)
+
+        topo = ctk.CTkFrame(self.corpo, fg_color="transparent")
+        topo.pack(fill="x")
+        topo.grid_columnconfigure(0, weight=3, uniform="topo")
+        topo.grid_columnconfigure(1, weight=2, uniform="topo")
+        self._montar_formulario(topo)
+        self._montar_resumo(topo)
+        self._montar_tabela()
+        self.limpar()
+
+    # ---------- montagem ----------
+    def _montar_formulario(self, topo):
+        form = Cartao(topo, "Nova reserva")
+        form.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        grade = ctk.CTkFrame(form, fg_color="transparent")
+        grade.pack(fill="x", padx=20)
+        grade.grid_columnconfigure((0, 1, 2), weight=1, uniform="campos")
+
+        self.hospede = CampoSeletorHospede(grade, self.servicos, ao_mudar=self.atualizar_resumo)
+        self.quarto = CampoSeletor(grade, "Quarto", "Clique para pesquisar e escolher o quarto…",
+                                   self._abrir_selecao_quarto, self.atualizar_resumo)
+        self.num = CampoTexto(grade, "Nº de hóspedes", "1", self.atualizar_resumo)
+        self.entrada = CampoData(grade, "Data de entrada", self.atualizar_resumo,
+                                 ao_escolher=self._ao_escolher_entrada)
+        self.saida = CampoData(grade, "Data de saída", self.atualizar_resumo,
+                               data_minima=self._menor_data_de_saida)
+        self.hospede.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        self.quarto.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        self.num.grid(row=2, column=0, sticky="ew", padx=(0, 8))
+        self.entrada.grid(row=2, column=1, sticky="ew", padx=8)
+        self.saida.grid(row=2, column=2, sticky="ew", padx=(8, 0))
+
+        botoes = ctk.CTkFrame(form, fg_color="transparent")
+        botoes.pack(anchor="w", padx=20, pady=(14, 18))
+        botao_primario(botoes, "Confirmar reserva", self.confirmar, 170).pack(side="left")
+        botao_secundario(botoes, "Limpar", self.limpar).pack(side="left", padx=10)
+
+    def _montar_resumo(self, topo):
+        resumo = Cartao(topo, "Resumo da reserva")
+        resumo.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        self.lbl_diarias = self._linha_resumo(resumo, "Diárias")
+        self.lbl_valor = self._linha_resumo(resumo, "Valor da diária")
+        ctk.CTkLabel(resumo, text="Total", font=fonte(13), text_color=COR_TEXTO_SUAVE
+                     ).pack(anchor="w", padx=20, pady=(12, 0))
+        self.lbl_total = ctk.CTkLabel(resumo, text="—", font=fonte(32, True), text_color=AZUL)
+        self.lbl_total.pack(anchor="w", padx=20)
+        self.lbl_aviso = ctk.CTkLabel(resumo, text="", font=fonte(13, True), wraplength=330,
+                                      justify="left", text_color=COR_TEXTO_SUAVE)
+        self.lbl_aviso.pack(anchor="w", padx=20, pady=(10, 16))
+
+    def _linha_resumo(self, pai, rotulo):
+        linha = ctk.CTkFrame(pai, fg_color="transparent")
+        linha.pack(fill="x", padx=20, pady=2)
+        ctk.CTkLabel(linha, text=rotulo, font=fonte(13), text_color=COR_TEXTO_SUAVE
+                     ).pack(side="left")
+        valor = ctk.CTkLabel(linha, text="—", font=fonte(13, True), text_color=COR_TEXTO)
+        valor.pack(side="right")
+        return valor
+
+    def _montar_tabela(self):
+        lista = Cartao(self.corpo, "Reservas")
+        lista.pack(fill="both", expand=True, pady=(16, 0))
+        self._montar_filtros(lista)
+
+        # a barra de ações é empacotada antes da tabela, embaixo, para nunca ser espremida
+        acoes = ctk.CTkFrame(lista, fg_color="transparent")
+        acoes.pack(side="bottom", fill="x", padx=20, pady=(0, 16))
+        if Sessao.pode("reservas.cancelar"):
+            botao_perigo(acoes, "Cancelar reserva selecionada", self.cancelar, 240
+                         ).pack(side="left")
+        if Sessao.pode("reservas.noshow"):
+            botao_secundario(acoes, "Marcar no-show", self.marcar_no_show, 150
+                             ).pack(side="left", padx=(10, 0))
+        botao_secundario(acoes, "Pagamentos da reserva selecionada", self.abrir_pagamentos, 270
+                         ).pack(side="left", padx=(10, 0))
+        botao_secundario(acoes, "Detalhes da reserva", self.abrir_detalhes, 160
+                         ).pack(side="left", padx=(10, 0))
+        self.lbl_filtro = ctk.CTkLabel(lista, text="", font=fonte(12),
+                                       text_color=COR_TEXTO_SUAVE, anchor="e")
+        self.lbl_filtro.pack(fill="x", padx=20, pady=(0, 6))
+
+        self.tabela = Tabela(lista, COLUNAS, altura=110, ao_duplo_clique=self.abrir_pagamentos,
+                             badges={"situacao": estilo_badge_status,
+                                     "pagamento": estilo_badge_status})
+        self.tabela.pack(fill="both", expand=True, padx=20, pady=(0, 8))
+
+    def _montar_filtros(self, lista):
+        filtros = ctk.CTkFrame(lista, fg_color="transparent")
+        filtros.pack(fill="x", padx=20, pady=(0, 10))
+        filtros.grid_columnconfigure(0, weight=3)
+        filtros.grid_columnconfigure((1, 2, 3), weight=1, uniform="filtro")
+        
+        self.busca = CampoTexto(
+            filtros, "Pesquisar", "Hóspede, CPF, quarto ou código",
+            self.atualizar_tabela)
+        self.filtro_situacao = CampoSelecao(
+            filtros, "Status", [TODAS, *SITUACOES_RESERVA], self.atualizar_tabela)
+        self.filtro_situacao.definir(TODAS)
+
+        self.filtro_de = CampoData(filtros, "De", self.atualizar_tabela)
+        self.filtro_ate = CampoData(filtros, "Até", self.atualizar_tabela)
+
+        for coluna, campo in enumerate((self.busca, self.filtro_situacao,
+                                        self.filtro_de, self.filtro_ate)):
+            campo.grid(row=0, column=coluna, sticky="ew",
+                       padx=(0 if coluna == 0 else 5, 0 if coluna == 3 else 5))
+
+        botao_secundario(filtros, "Limpar filtros", self.limpar_filtros, 120
+                         ).grid(row=0, column=4, sticky="s", padx=(8, 0))
+
+    # ---------- datas ----------
+    def _menor_data_de_saida(self):
+        """No calendário da saída, os dias até a entrada ficam bloqueados."""
+        entrada = self.entrada.data()
+        return entrada + timedelta(days=1) if entrada else None
+
+    def _ao_escolher_entrada(self, entrada):
+        """Escolheu a entrada no calendário: se a saída ficou vazia ou não é posterior,
+        leva a saída para o dia seguinte."""
+        saida = self.saida.data()
+        if saida is None or saida <= entrada:
+            self.saida.definir(formatar_data(entrada + timedelta(days=1)))
+
+    # ---------- escolha de hóspede e quarto ----------
+    @staticmethod
+    def _texto_quarto(q):
+        return f"{q.numero} · {q.tipo} · {formatar_moeda(q.preco_diaria)}/dia"
+
+    def _abrir_selecao_quarto(self, escolher):
+        periodo = self._periodo_informado()
+        pessoas = self._numero_hospedes() or 1
+        if periodo:
+            entrada, saida = periodo
+            opcao = ("Mostrar só quartos disponíveis no período e com capacidade suficiente", True)
+            informacao = (f"Período de {formatar_data(entrada)} a {formatar_data(saida)} "
+                          f"para {pessoas} hóspede(s).")
+        else:
+            opcao = None
+            informacao = ("Informe datas de entrada e saída válidas para filtrar só os quartos "
+                          "disponíveis no período.")
+
+        def buscar(termo, so_disponiveis):
+            if periodo and so_disponiveis:
+                quartos = self.servicos.quartos.listar_disponiveis(*periodo, pessoas)
+            else:
+                quartos = self.servicos.quartos.listar()
+            termo = normalizar_texto(termo.strip())
+            return [{"id": q.id, "numero": q.numero, "tipo": q.tipo,
+                     "capacidade": q.capacidade, "diaria": formatar_moeda(q.preco_diaria),
+                     "situacao": q.situacao, "texto": self._texto_quarto(q)}
+                    for q in quartos
+                    if not termo or termo in normalizar_texto(q.numero)
+                    or termo in normalizar_texto(q.tipo)]
+
+        JanelaSelecao(self, "Selecionar quarto", COLUNAS_SELECAO_QUARTO, buscar,
+                      lambda linha: escolher(linha["id"], linha["texto"]),
+                      placeholder="Buscar por número ou tipo", opcao=opcao,
+                      informacao=informacao)
+
+    def _periodo_informado(self):
+        """(entrada, saida) se as duas datas do formulário forem válidas; senão None."""
+        try:
+            entrada, saida = ler_data(self.entrada.valor()), ler_data(self.saida.valor())
+            validar_periodo(entrada, saida)
+        except ValueError:
+            return None
+        return entrada, saida
+
+    def _numero_hospedes(self):
+        try:
+            numero = int(self.num.valor())
+        except ValueError:
+            return None
+        return numero if numero >= 1 else None
+
+    # ---------- dados ----------
+    def ao_exibir(self):
+        self._atualizar_selecoes()
+        self.atualizar_tabela()
+        self.atualizar_resumo()
+
+    def _atualizar_selecoes(self):
+        """Se o hóspede/quarto escolhido foi editado ou excluído, atualiza ou limpa."""
+        self.hospede.atualizar()
+        if self.quarto.valor():
+            q = self.servicos.quartos.buscar_por_id(self.quarto.valor())
+            if q is None:
+                self.quarto.limpar(notificar=False)
+            else:
+                self.quarto.definir(q.id, self._texto_quarto(q), notificar=False)
+
+    def _ler_data_filtro(self, campo):
+        """Data do filtro; ignora campos vazios/incompletos e rejeita datas inválidas."""
+        texto = campo.valor()
+        if len(texto) < 10:
+            return None
+        data = campo.data()
+        if data is None:
+            raise ErroNegocio("Informe uma data válida no formato dd/mm/aaaa.")
+        return data
+
+    def atualizar_tabela(self):
+        try:
+            situacao = self.filtro_situacao.valor()
+            reservas = self.servicos.reservas.pesquisar(
+                self.busca.valor(), "" if situacao in ("", TODAS) else situacao,
+                self._ler_data_filtro(self.filtro_de), self._ler_data_filtro(self.filtro_ate))
+        except (ValueError, ErroNegocio) as erro:
+            self.lbl_filtro.configure(text=str(erro), text_color=VERMELHO)
+            return
+        self.lbl_filtro.configure(text=f"{len(reservas)} reserva(s) encontrada(s)",
+                                  text_color=COR_TEXTO_SUAVE)
+        self.tabela.carregar(self.servicos.linhas_reservas(reservas))
+
+    def limpar_filtros(self):
+        self.busca.limpar()
+        self.filtro_de.limpar()
+        self.filtro_ate.limpar()
+        self.filtro_situacao.definir(TODAS)
+        self.winfo_toplevel().focus_set()   # devolve o texto de exemplo aos campos
+        self.atualizar_tabela()
+
+    def _quarto_selecionado(self):
+        quarto_id = self.quarto.valor()
+        return self.servicos.quartos.buscar_por_id(quarto_id) if quarto_id else None
+
+    # ---------- resumo e validação ----------
+    def _mostrar(self, diarias=None, valor=None, total=None, aviso="",
+                 cor=COR_TEXTO_SUAVE, valido=False):
+        self.lbl_diarias.configure(text="—" if diarias is None else str(diarias))
+        self.lbl_valor.configure(text="—" if valor is None else formatar_moeda(valor))
+        self.lbl_total.configure(text="—" if total is None else formatar_moeda(total))
+        self.lbl_aviso.configure(text=aviso, text_color=cor)
+        return valido
+
+    def atualizar_resumo(self):
+        """Recalcula o resumo e retorna True se a reserva puder ser confirmada."""
+        try:
+            entrada = ler_data(self.entrada.valor())
+            saida = ler_data(self.saida.valor())
+        except ValueError as erro:
+            return self._mostrar(aviso=str(erro))
+        try:
+            validar_periodo(entrada, saida)
+        except ValueError as erro:
+            return self._mostrar(aviso=str(erro), cor=VERMELHO)
+
+        diarias = calcular_diarias(entrada, saida)
+        quarto = self._quarto_selecionado()
+        if quarto is None:
+            return self._mostrar(diarias, aviso="Selecione um quarto.")
+
+        total = calcular_total(diarias, quarto.preco_diaria)
+        resultado = dict(diarias=diarias, valor=quarto.preco_diaria, total=total)
+
+        if quarto.situacao == QUARTO_MANUTENCAO:
+            return self._mostrar(**resultado, aviso="Quarto em manutenção.", cor=VERMELHO)
+        if self.servicos.reservas.tem_conflito(quarto.id, entrada, saida):
+            return self._mostrar(**resultado, aviso="Quarto já reservado neste período.",
+                                 cor=VERMELHO)
+        try:
+            validar_capacidade(quarto, int(self.num.valor()))
+        except ValueError as erro:
+            texto = "Informe o número de hóspedes." if "invalid literal" in str(erro) else str(erro)
+            return self._mostrar(**resultado, aviso=texto, cor=VERMELHO)
+
+        return self._mostrar(**resultado, aviso="Quarto disponível no período.",
+                             cor=VERDE, valido=True)
+
+    # ---------- ações ----------
+    def limpar(self):
+        self.hospede.limpar(notificar=False)
+        self.quarto.limpar(notificar=False)
+        self.num.definir("1")
+        hoje = date.today()
+        self.entrada.definir(formatar_data(hoje))
+        self.saida.definir(formatar_data(hoje + timedelta(days=1)))
+        self.atualizar_resumo()
+
+    def confirmar(self):
+        hospede_id = self.hospede.valor()
+        if hospede_id is None:
+            messagebox.showwarning("Hóspede obrigatório", "Selecione o hóspede da reserva.")
+            return
+        if not self.atualizar_resumo():
+            messagebox.showerror("Não foi possível reservar", self.lbl_aviso.cget("text"))
+            return
+
+        quarto = self._quarto_selecionado()
+        entrada, saida = ler_data(self.entrada.valor()), ler_data(self.saida.valor())
+        try:
+            reserva = self.servicos.reservas.criar_reserva(
+                hospede_id, quarto.id, entrada, saida, int(self.num.valor()))
+        except ErroNegocio as erro:
+            messagebox.showerror("Não foi possível reservar", str(erro))
+            return
+        messagebox.showinfo("Reserva confirmada",
+                            f"Reserva criada. Total: {formatar_moeda(reserva.valor_total)}")
+        self.limpar()
+        self.atualizar_tabela()
+
+    def abrir_detalhes(self):
+        linha = self.tabela.selecionado()
+        if linha is None:
+            messagebox.showinfo("Detalhes", "Selecione uma reserva na tabela.")
+            return
+        abrir_detalhes(self, self.servicos, linha["id"])
+
+    def abrir_pagamentos(self, _linha=None):
+        linha = self.tabela.selecionado()
+        if linha is None:
+            messagebox.showinfo("Pagamentos", "Selecione uma reserva na tabela.")
+            return
+        abrir_janela_pagamentos(self, self.servicos, linha["id"], self.atualizar_tabela)
+
+    def cancelar(self):
+        linha = self.tabela.selecionado()
+        if linha is None:
+            messagebox.showinfo("Cancelar", "Selecione uma reserva na tabela.")
+            return
+        reserva = self.servicos.reservas.buscar_por_id(linha["id"])
+        if reserva is None or not pode_cancelar(reserva):
+            messagebox.showerror("Não é possível cancelar",
+                                 "Só é possível cancelar reservas confirmadas, antes do check-in.")
+            return
+        # a janela pede o motivo (obrigatório) e registra data, hora e usuário no cancelamento
+        if not abrir_cancelamento(self, self.servicos, linha["id"]):
+            return
+        self.atualizar_tabela()
+        self.atualizar_resumo()
+        self._oferecer_reembolso(linha)
+
+    def marcar_no_show(self):
+        linha = self.tabela.selecionado()
+        if linha is None:
+            messagebox.showinfo("No-show", "Selecione uma reserva na tabela.")
+            return
+        reserva = self.servicos.reservas.buscar_por_id(linha["id"])
+        impedimento = self.servicos.reservas.impedimento_no_show(reserva) if reserva else None
+        if reserva is None or impedimento:
+            messagebox.showerror("Não é possível marcar", impedimento or "Reserva não encontrada.")
+            return
+        previa = self.servicos.reservas.previa_retencao(linha["id"], RESERVA_NO_SHOW)
+        pergunta = (f"Marcar a reserva {linha['codigo']} de {linha['hospede']} como "
+                    "'Não compareceu'?\n\nO quarto volta a ficar livre para o período. "
+                    "A marcação fica registrada com a data, a hora e o seu usuário.")
+        if previa.pago > 0:
+            pergunta += (f"\n\nPela regra de retenção: pago {formatar_moeda(previa.pago)}, "
+                         f"retido {formatar_moeda(previa.valor_retido)}, "
+                         f"a devolver {formatar_moeda(previa.a_devolver)}.")
+        if not messagebox.askyesno("Marcar no-show", pergunta):
+            return
+        try:
+            reserva = self.servicos.reservas.marcar_no_show(linha["id"])
+        except ErroNegocio as erro:
+            messagebox.showerror("Não é possível marcar", str(erro))
+            return
+        self.atualizar_tabela()
+        self.atualizar_resumo()
+        nome = self.servicos.reservas.responsaveis([reserva]).get(reserva.noshow_por, "—")
+        messagebox.showinfo("No-show registrado",
+                            f"Reserva {linha['codigo']} marcada como 'Não compareceu' em "
+                            f"{reserva.noshow_em:%d/%m/%Y} às {reserva.noshow_em:%H:%M}, por {nome}.")
+
+    def _oferecer_reembolso(self, linha):
+        """Depois de cancelar uma reserva já paga, oferece registrar a devolução do valor."""
+        pago = self.servicos.pagamentos.resumo(linha["id"]).total_pago
+        if pago <= 0 or not Sessao.pode("pagamentos.reembolsar"):
+            return
+        reserva = self.servicos.reservas.buscar_por_id(linha["id"])
+        retido = (reserva.valor_retido or 0.0) if reserva else 0.0
+        texto = f"Esta reserva tinha {formatar_moeda(pago)} pagos.\n"
+        if retido > 0:
+            texto += (f"Retido pela regra: {formatar_moeda(retido)}. "
+                      f"A devolver: {formatar_moeda(max(pago - retido, 0.0))}.\n")
+        if messagebox.askyesno("Reembolso", texto + "\nDeseja registrar o reembolso agora?"):
+            abrir_reembolso(self, self.servicos, linha["id"], ao_atualizar=self.atualizar_tabela)
