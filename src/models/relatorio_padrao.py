@@ -25,6 +25,13 @@ class Indicador:
 
 
 @dataclass
+class FiltroAplicado:
+    """Um filtro que estava ativo na tela quando o relatório foi gerado (ex.: 'Situação: Em aberto')."""
+    rotulo: str
+    valor: str
+
+
+@dataclass
 class ColunaRelatorio:
     titulo: str
     chave: str
@@ -41,11 +48,12 @@ class TabelaRelatorio:
 
 @dataclass
 class RelatorioPadrao:
-    """Cabeçalho, indicadores, tabelas e observações, nesta ordem."""
+    """Cabeçalho, filtros, indicadores, tabelas e observações, nesta ordem."""
     cabecalho: CabecalhoRelatorio
     indicadores: List[Indicador] = field(default_factory=list)
     tabelas: List[TabelaRelatorio] = field(default_factory=list)
     observacoes: List[str] = field(default_factory=list)
+    filtros: List[FiltroAplicado] = field(default_factory=list)   # além do período do cabeçalho
 
 
 @dataclass

@@ -28,7 +28,7 @@ def abrir_imagem_logo(caminho, lado=LADO_LOGO):
     """
     caminho = Path(caminho)
     if caminho.suffix.lower() in (".svg", ".svgz"):
-        import resvg_py
+        import resvg_py # type: ignore
         # o SVG pode não ser quadrado: a maior dimensão vai a `lado`, a outra segue a proporção
         png = resvg_py.svg_to_bytes(svg_path=str(caminho), width=lado * ESCALA_SVG)
         imagem = Image.open(io.BytesIO(bytes(png)))

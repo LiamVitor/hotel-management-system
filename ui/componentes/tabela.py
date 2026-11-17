@@ -138,3 +138,21 @@ class Tabela(ctk.CTkFrame):
         if self._indice is None or self._indice >= len(self._linhas):
             return None
         return self._linhas[self._indice]
+
+
+class TabelaDados:
+    """Dados de uma tabela que entram no documento do relatório sem aparecer como tabela na tela
+    (ex.: os valores por trás de um gráfico). Tem a mesma interface que `PainelRelatorio` usa."""
+
+    def __init__(self, colunas=()):
+        self.colunas = list(colunas)
+        self._linhas = []
+
+    def carregar(self, linhas, colunas=None):
+        if colunas is not None:
+            self.colunas = list(colunas)
+        self._linhas = list(linhas)
+
+    def linhas_carregadas(self):
+        return list(self._linhas)
+

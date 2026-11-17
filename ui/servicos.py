@@ -9,6 +9,8 @@ from src.services.conta_receber_service import ContaReceberService
 from src.services.demonstrativo_receitas_service import DemonstrativoReceitasService
 from src.services.demonstrativo_service import DemonstrativoFinanceiroService
 from src.services.despesa_service import DespesaService
+from src.services.exportacao_service import ExportacaoService
+from src.services import relatorio_padrao as padrao
 from src.services.historico_hospedagem_service import HistoricoHospedagemService
 from src.services.hospede_service import HospedeService
 from src.services.inicio_service import InicioService
@@ -17,12 +19,15 @@ from src.services.pagamento_service import PagamentoService
 from src.services.quarto_service import QuartoService
 from src.services.politica_retencao_service import PoliticaRetencaoService
 from src.services.relatorio_cancelamentos_service import RelatorioCancelamentosService
+from src.services.relatorio_reservas_service import (RelatorioMovimentosService,
+                                                      RelatorioReservasService)
+from src.services.relatorio_reservas_regras import situacao_do_horario
 from src.services.reserva_service import ReservaService
 from src.services.usuario_service import UsuarioService
 from src.utils.constantes import (CAIXA_ENTRADA, CONTA_A_VENCER, CONTA_VENCIDA,
                                   GRANULARIDADE_DIA, GRANULARIDADE_MES, ORIGEM_DESPESA,
                                   PAGAMENTO_REEMBOLSO, RESERVA_CANCELADA, RESERVA_NO_SHOW)
-from src.utils.formatacao import (formatar_data, formatar_data_hora, formatar_moeda,
+from src.utils.formatacao import (formatar_cpf, formatar_data, formatar_data_hora, formatar_moeda,
                                     formatar_percentual)
 
 
@@ -42,6 +47,9 @@ class Servicos:
         self.politica_retencao = PoliticaRetencaoService()
         self.relatorio_cancelamentos = RelatorioCancelamentosService()
         self.usuarios = UsuarioService()
+        self.relatorio_reservas = RelatorioReservasService()
+        self.relatorio_movimentos = RelatorioMovimentosService()
+        self.exportacao = ExportacaoService()
         self.inicio = InicioService()
         self.checkin = CheckinCheckoutService()
 
@@ -307,3 +315,73 @@ class Servicos:
             "valor": formatar_moeda(d.valor),
             "responsavel": responsaveis.get(d.usuario_id, "—"),
         } for d in despesas]
+
+    # ---------- relatórios novos e exportação ----------
+    def linhas_reservas_periodo(self, reservas):
+        """Converte o relatório de reservas por período em dicionários para a tabela."""
+        return [{
+            "id": r.reserva_id,
+            "reserva": f"{r.reserva_id:04d}",
+            "hospede": r.hospede,
+            "quarto": r.quarto,
+            "entrada": formatar_data(r.data_entrada),
+            "saida": formatar_data(r.data_saida),
+            "noites": r.noites,
+            "total": formatar_moeda(r.valor_total),
+            "pago": formatar_moeda(r.valor_pago),
+            "situacao": r.situacao,
+        } for r in reservas]
+
+    def linhas_movimentos(self, movimentos):
+        """Converte check-ins e check-outs realizados em dicionários para a tabela."""
+        return [{
+            "id": m.reserva_id,
+            "data_hora": formatar_data_hora(m.data_hora),
+            "tipo": m.tipo,
+            "reserva": f"{m.reserva_id:04d}",
+            "hospede": m.hospede,
+            "quarto": m.quarto,
+            "prevista": formatar_data(m.data_prevista),
+            "horario": situacao_do_horario(m),
+            "responsavel": m.responsavel,
+        } for m in movimentos]
+
+    def linhas_ocupacao_periodo(self, barras, granularidade, fim):
+        """Valores por trás do gráfico de ocupação: um dia, uma semana ou um mês por linha."""
+        linhas = []
+        for dia, pct in barras:
+            if granularidade == GRANULARIDADE_DIA:
+                rotulo = formatar_data(dia)
+            elif granularidade == GRANULARIDADE_MES:
+                ultimo = (dia.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+                parcial = dia.day != 1 or fim < ultimo
+                rotulo = f"{dia:%m/%Y}" + (" (parcial)" if parcial else "")
+            else:
+                rotulo = f"{formatar_data(dia)} a {formatar_data(min(dia + timedelta(days=6), fim))}"
+            linhas.append({"periodo": rotulo, "ocupacao": formatar_percentual(pct)})
+        return linhas
+
+    def documento_historico_hospedagem(self, historico, situacao, colunas):
+        """RelatorioPadrao do histórico de hospedagem de um hóspede (o que a tela mostra).
+
+        situacao: o filtro de situação das reservas ('Todas' ou uma situação). colunas: as da
+        tabela da tela, [(título, chave, largura)].
+        """
+        h, r = historico.hospede, historico.resumo
+        contato = " · ".join(t for t in (formatar_cpf(h.cpf), h.email) if t)
+        partes = [f"Quartos utilizados: {', '.join(r['quartos_utilizados']) or '—'}"]
+        if r["ultima_hospedagem"]:
+            partes.append(f"Última hospedagem: {formatar_data(r['ultima_hospedagem'])}")
+        partes.append(f"{r['reservas']} reserva(s) no total: {r['futuras']} futura(s), "
+                      f"{r['canceladas']} cancelada(s), {r['no_shows']} sem comparecimento")
+        return padrao.montar_relatorio(
+            padrao.montar_cabecalho(f"Histórico de hospedagem — {h.nome}"),
+            [("Hospedagens", r["hospedagens"]), ("Noites hospedadas", r["noites"]),
+             ("Quartos utilizados", len(r["quartos_utilizados"])),
+             ("Total pago", formatar_moeda(r["total_pago"]))],
+            [padrao.montar_tabela("Reservas do hóspede", colunas,
+                                  self.linhas_historico_hospedagem(historico.itens))],
+            ["  ·  ".join(partes) + ". Os indicadores são do histórico completo; a lista "
+             "respeita o filtro de situação."],
+            [("Hóspede", f"{h.nome} ({contato})" if contato else h.nome),
+             ("Situação das reservas", situacao or "Todas")])

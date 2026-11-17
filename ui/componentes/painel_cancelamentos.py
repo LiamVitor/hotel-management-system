@@ -4,7 +4,7 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
-from src.utils.constantes import FILTROS_CANCELAMENTOS, RELATORIO_CANC_TODOS
+from src.utils.constantes import FILTROS_CANCELAMENTOS, REL_CANCELAMENTOS, RELATORIO_CANC_TODOS
 from src.utils.formatacao import formatar_moeda, formatar_percentual
 from src.utils.sessao import Sessao
 from ui.componentes.botoes import botao_secundario
@@ -28,6 +28,7 @@ CARTOES = ["Cancelamentos", "No-shows", "Total retido", "Total reembolsado", "A 
 class PainelCancelamentos(PainelRelatorio):
     TITULO = "Cancelamentos e no-show"
     ROTULO_PERIODO = "Ocorridos"
+    CHAVE = REL_CANCELAMENTOS
 
     def __init__(self, master, servicos):
         super().__init__(master, servicos)
@@ -99,6 +100,8 @@ class PainelCancelamentos(PainelRelatorio):
                 messagebox.showwarning("Filtro inválido", str(erro))
             return
         self.marcar_emissao(de, ate)
+        self.definir_filtros([("Tipo", self.tipo.valor() or RELATORIO_CANC_TODOS),
+                              ("Busca", self.busca.valor())])
         self.cartoes["Cancelamentos"].atualizar(totais["cancelamentos"])
         self.cartoes["No-shows"].atualizar(totais["no_shows"])
         self.cartoes["Total retido"].atualizar(formatar_moeda(totais["total_retido"]))

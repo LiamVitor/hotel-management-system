@@ -7,18 +7,21 @@ import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
 from src.services.relatorios import relatorio_periodo
-from src.utils.constantes import GRANULARIDADE_DIA, GRANULARIDADE_MES, GRANULARIDADE_SEMANA
+from src.utils.constantes import (GRANULARIDADE_DIA, GRANULARIDADE_MES, GRANULARIDADE_SEMANA,
+                                  REL_OCUPACAO)
 from src.utils.periodos import ATALHOS_RELATORIO, PERSONALIZADO, periodo_do_atalho
 from ui.componentes.botoes import botao_primario
 from ui.componentes.campo_data import CampoData
 from ui.componentes.campos import CampoSelecao
 from ui.componentes.cartao import Cartao
 from ui.componentes.painel_cancelamentos import PainelCancelamentos
+from ui.componentes.painel_checkins_checkouts import PainelCheckinsCheckouts
 from ui.componentes.painel_contas_receber import PainelContasReceber
 from ui.componentes.painel_demonstrativo import PainelDemonstrativo
 from ui.componentes.painel_receitas import PainelReceitas
 from ui.componentes.painel_relatorio import PainelRelatorio
-from ui.componentes.tabela import Tabela
+from ui.componentes.painel_reservas_periodo import PainelReservasPeriodo
+from ui.componentes.tabela import Tabela, TabelaDados
 from ui.estilos import AZUL, COR_BORDA, COR_CARTAO, COR_TEXTO, COR_TEXTO_SUAVE, FONTE_FAMILIA, fonte
 from ui.telas.tela_base import TelaBase
 from src.utils.formatacao import formatar_data, formatar_moeda, formatar_percentual, ler_data
@@ -39,6 +42,7 @@ LEGENDA_BARRAS = {
 
 # relatórios que o seletor oferece -> qual quadro mostrar
 VISOES = {"Ocupação por dia": "dia", "Ocupação por quarto": "quarto",
+          "Reservas por período": "reservas", "Check-ins e check-outs": "movimentos",
           "Contas a receber": "contas", "Demonstrativo financeiro": "demonstrativo",
           "Demonstrativo de receitas": "receitas", "Cancelamentos e no-show": "cancelamentos"}
 
@@ -61,15 +65,22 @@ class TelaRelatorios(TelaBase):
         self.visao = CampoSelecao(seletor, "Relatório", list(VISOES), self._trocar_visao)
         self.visao.caixa.configure(width=280)
         self.visao.pack(anchor="w")
-        self.painel_ocupacao = PainelRelatorio(self.conteudo, self.servicos)    # cabeçalho padrão no topo
+        self.painel_ocupacao = PainelRelatorio(self.conteudo, self.servicos,    # cabeçalho padrão no topo
+                                               chave=REL_OCUPACAO)
+        # os arquivos exportados levam o dia a dia e os quartos juntos: o relatório é um só
+        self.painel_ocupacao.titulo_exportacao = "Ocupação dos quartos"
         self.painel_ocupacao.definir_titulo(self._titulo_ocupacao())
         self.painel_ocupacao.pack(fill="both", expand=True, pady=(12, 0))
+        self.painel_reservas = PainelReservasPeriodo(self.conteudo, self.servicos)
+        self.painel_movimentos = PainelCheckinsCheckouts(self.conteudo, self.servicos)
         self.painel_contas = PainelContasReceber(self.conteudo, self.servicos)
         self.painel_demonstrativo = PainelDemonstrativo(self.conteudo, self.servicos)
         self.painel_cancelamentos = PainelCancelamentos(self.conteudo, self.servicos)
         self.painel_receitas = PainelReceitas(self.conteudo, self.servicos)
         # relatórios que têm painel próprio (os demais usam o painel de ocupação)
-        self._paineis = {"contas": self.painel_contas,
+        self._paineis = {"reservas": self.painel_reservas,
+                         "movimentos": self.painel_movimentos,
+                         "contas": self.painel_contas,
                          "demonstrativo": self.painel_demonstrativo,
                          "cancelamentos": self.painel_cancelamentos,
                          "receitas": self.painel_receitas}
@@ -101,6 +112,9 @@ class TelaRelatorios(TelaBase):
         grafico = Cartao(area, "Ocupação por dia")
         quartos = Cartao(area, "Ocupação por quarto")
         self._visoes = {"dia": grafico, "quarto": quartos}
+        # valores por trás do gráfico (não aparecem como tabela na tela; entram nos arquivos)
+        self.tabela_barras = TabelaDados([("Dia", "periodo", 190), ("Ocupação", "ocupacao", 110)])
+        self.painel_ocupacao.registrar_tabela("Ocupação por dia", self.tabela_barras)
         self.tabela_quartos = Tabela(quartos, [
             ("Quarto", "numero", 90), ("Tipo", "tipo", 120),
             ("Noites ocupadas", "ocupadas", 150), ("Noites bloqueadas", "bloqueadas", 160),
@@ -187,6 +201,7 @@ class TelaRelatorios(TelaBase):
             return
 
         self.painel_ocupacao.marcar_emissao(inicio, fim, titulo=self._titulo_ocupacao())
+        self.painel_ocupacao.definir_filtros([])
         self.cartoes["Taxa de ocupação"].atualizar(formatar_percentual(resumo["taxa_ocupacao"]))
         self.cartoes["Valor reservado"].atualizar(formatar_moeda(resumo["faturamento"]))
         self.cartoes["Reservas no período"].atualizar(resumo["reservas"])
@@ -199,6 +214,11 @@ class TelaRelatorios(TelaBase):
             f"{totais['media_bloqueados']:.1f}")
         self.tabela_quartos.carregar(self.servicos.linhas_ocupacao_quartos(resumo))
         self.lbl_legenda.configure(text=LEGENDA_BARRAS[resumo["granularidade"]])
+        rotulo = {GRANULARIDADE_DIA: "Dia", GRANULARIDADE_SEMANA: "Semana",
+                  GRANULARIDADE_MES: "Mês"}[resumo["granularidade"]]
+        self.tabela_barras.carregar(
+            self.servicos.linhas_ocupacao_periodo(resumo["barras"], resumo["granularidade"], fim),
+            [(rotulo, "periodo", 190), ("Ocupação", "ocupacao", 110)])
         self._barras = resumo["barras"]
         self._granularidade = resumo["granularidade"]
         self._desenhar(self._barras, self._granularidade)

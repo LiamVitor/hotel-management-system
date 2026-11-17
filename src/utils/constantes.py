@@ -91,3 +91,27 @@ NIVEL_INFO = "info"               # só informativo
 # Tela de check-in / check-out: tipos de movimento já feito no dia
 MOVIMENTO_CHECKIN = "Check-in"
 MOVIMENTO_CHECKOUT = "Check-out"
+
+# ---------- exportação de relatórios ----------
+FORMATO_PDF = "pdf"
+FORMATO_EXCEL = "xlsx"
+FORMATOS_EXPORTACAO = [FORMATO_PDF, FORMATO_EXCEL]
+
+# Chave de cada um dos oito relatórios (decide a permissão exigida para exportar)
+REL_OCUPACAO = "ocupacao"
+REL_RESERVAS = "reservas"
+REL_CHECKINS_CHECKOUTS = "checkins_checkouts"
+REL_RECEITAS = "receitas"
+REL_DEMONSTRATIVO = "demonstrativo"
+REL_CONTAS_RECEBER = "contas_receber"
+REL_HISTORICO_HOSPEDAGEM = "historico_hospedagem"
+REL_CANCELAMENTOS = "cancelamentos"
+
+# Relatório de reservas por período (filtro de situação) e de check-ins/check-outs (filtro de tipo);
+# MOVIMENTO_CHECKIN / MOVIMENTO_CHECKOUT já existem acima (tela de check-in/check-out)
+RESERVAS_TODAS = "Todas"
+FILTROS_RESERVAS = [RESERVAS_TODAS, RESERVA_CONFIRMADA, RESERVA_HOSPEDADA, RESERVA_FINALIZADA,
+                    RESERVA_CANCELADA, RESERVA_NO_SHOW]
+MOVIMENTO_TODOS = "Todos"
+FILTROS_MOVIMENTOS = [MOVIMENTO_TODOS, MOVIMENTO_CHECKIN, MOVIMENTO_CHECKOUT]
+

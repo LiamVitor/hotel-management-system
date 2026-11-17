@@ -4,6 +4,7 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
+from src.utils.constantes import REL_RECEITAS
 from src.utils.formatacao import formatar_data, formatar_moeda
 from src.utils.periodos import ATALHOS_RELATORIO, ESTE_MES, PERSONALIZADO, periodo_do_atalho
 from ui.componentes.campo_data import CampoData
@@ -41,6 +42,7 @@ COLUNAS = {
 
 class PainelReceitas(PainelRelatorio):
     TITULO = "Demonstrativo de receitas"
+    CHAVE = REL_RECEITAS
 
     def __init__(self, master, servicos):
         super().__init__(master, servicos)

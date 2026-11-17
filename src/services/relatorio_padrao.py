@@ -8,8 +8,9 @@ import re
 from datetime import datetime
 
 from src.models.relatorio_padrao import (ALINHA_DIREITA, ALINHA_ESQUERDA, BlocoPagina,
-                                         CabecalhoRelatorio, ColunaRelatorio, Indicador, Pagina,
-                                         RelatorioPadrao, RodapePagina, TabelaRelatorio)
+                                         CabecalhoRelatorio, ColunaRelatorio, FiltroAplicado,
+                                         Indicador, Pagina, RelatorioPadrao, RodapePagina,
+                                         TabelaRelatorio)
 from src.utils.formatacao import formatar_data
 from src.utils.pousada import ARQUIVO_LOGO, NOME_POUSADA
 from src.utils.permissoes import rotulo_perfil
@@ -90,11 +91,16 @@ def montar_tabela(titulo, colunas, linhas):
                  for t, chave, largura in colunas])
 
 
-def montar_relatorio(cabecalho, indicadores=(), tabelas=(), observacoes=()):
-    """Junta as partes na ordem padrão: cabeçalho, indicadores, tabelas, observações."""
+def montar_relatorio(cabecalho, indicadores=(), tabelas=(), observacoes=(), filtros=()):
+    """Junta as partes na ordem padrão: cabeçalho, filtros, indicadores, tabelas, observações.
+
+    filtros: [(rótulo, valor)] dos filtros ativos na tela (o período já vai no cabeçalho);
+    filtro sem valor é descartado.
+    """
     return RelatorioPadrao(
         cabecalho=cabecalho, indicadores=[Indicador(r, v) for r, v in indicadores],
-        tabelas=list(tabelas), observacoes=[o for o in observacoes if o])
+        tabelas=list(tabelas), observacoes=[o for o in observacoes if o],
+        filtros=[FiltroAplicado(r, str(v)) for r, v in filtros if str(v or "").strip()])
 
 
 # ---------- rodapé e numeração de páginas ----------

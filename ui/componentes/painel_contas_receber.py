@@ -4,7 +4,7 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
-from src.utils.constantes import CONTAS_EM_ABERTO, FILTROS_CONTAS
+from src.utils.constantes import CONTAS_EM_ABERTO, FILTROS_CONTAS, REL_CONTAS_RECEBER
 from src.utils.formatacao import formatar_moeda
 from src.utils.sessao import Sessao
 from ui.componentes.botoes import botao_secundario
@@ -24,6 +24,7 @@ COLUNAS = [("Reserva", "reserva", 70), ("Hóspede", "hospede", 180), ("Total", "
 class PainelContasReceber(PainelRelatorio):
     TITULO = "Contas a receber"
     ROTULO_PERIODO = "Vencimento"
+    CHAVE = REL_CONTAS_RECEBER
 
     def __init__(self, master, servicos):
         super().__init__(master, servicos)
@@ -92,6 +93,8 @@ class PainelContasReceber(PainelRelatorio):
             return
         self._contas = {c.reserva_id: c for c in contas}
         self.marcar_emissao(de, ate)
+        self.definir_filtros([("Situação", self.situacao.valor() or CONTAS_EM_ABERTO),
+                              ("Busca", self.busca.valor())])
         self.cartoes["Total a receber"].atualizar(formatar_moeda(totais["total_a_receber"]))
         self.cartoes["Vencido"].atualizar(
             formatar_moeda(totais["total_vencido"]),

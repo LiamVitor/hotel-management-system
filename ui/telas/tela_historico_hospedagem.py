@@ -3,8 +3,9 @@ from tkinter import messagebox
 import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
-from src.utils.constantes import SITUACOES_RESERVA
+from src.utils.constantes import REL_HISTORICO_HOSPEDAGEM, SITUACOES_RESERVA
 from src.utils.formatacao import formatar_cpf, formatar_data, formatar_moeda, formatar_telefone
+from ui.componentes.barra_exportacao import BarraExportacao
 from ui.componentes.campos import CampoSelecao
 from ui.componentes.cartao import Cartao, CartaoResumo
 from ui.componentes.janela_detalhes_reserva import abrir_detalhes
@@ -25,7 +26,13 @@ class TelaHistoricoHospedagem(TelaBase):
 
     def __init__(self, master, servicos):
         super().__init__(master, servicos)
+        self._historico = None       # o que a tela mostra agora (para exportar)
+        self._filtro_situacao = TODAS
 
+        barra = BarraExportacao(self.corpo, self.servicos, REL_HISTORICO_HOSPEDAGEM,
+                                self._documento)
+        if barra.pode:
+            barra.pack(fill="x", pady=(0, 12))
         filtro = Cartao(self.corpo, "Hóspede")
         filtro.pack(fill="x")
         linha = ctk.CTkFrame(filtro, fg_color="transparent")
@@ -71,7 +78,15 @@ class TelaHistoricoHospedagem(TelaBase):
         self.hospede.atualizar()
         self.consultar()
 
+    def _documento(self):
+        """O histórico que está na tela, no formato padrão, para exportar."""
+        if self._historico is None:
+            raise ErroNegocio("Escolha um hóspede para exportar o histórico dele.")
+        return self.servicos.documento_historico_hospedagem(
+            self._historico, self._filtro_situacao, COLUNAS)
+
     def _limpar(self):
+        self._historico = None
         for cartao in self.cartoes.values():
             cartao.atualizar("—")
         self.lbl_hospede.configure(text="Escolha um hóspede para ver o histórico dele.")
@@ -92,6 +107,7 @@ class TelaHistoricoHospedagem(TelaBase):
             self._limpar()
             return
 
+        self._historico, self._filtro_situacao = historico, filtro or TODAS
         h, r = historico.hospede, historico.resumo
         contato = " · ".join(t for t in (formatar_cpf(h.cpf), formatar_telefone(h.telefone),
                                          h.email) if t)

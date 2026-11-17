@@ -5,7 +5,8 @@ import customtkinter as ctk
 
 from src.services.erros import ErroNegocio
 from src.utils.constantes import (CAIXA_TODAS, GRANULARIDADE_DIA, GRANULARIDADE_MES,
-                                  ORIGEM_DESPESA, ORIGEM_PAGAMENTO, ORIGEM_REEMBOLSO)
+                                  ORIGEM_DESPESA, ORIGEM_PAGAMENTO, ORIGEM_REEMBOLSO,
+                                  REL_DEMONSTRATIVO)
 from src.utils.formatacao import formatar_data, formatar_moeda
 from src.utils.periodos import ATALHOS_RELATORIO, ESTE_MES, PERSONALIZADO, periodo_do_atalho
 from ui.componentes.campo_data import CampoData
@@ -35,9 +36,12 @@ NOME_GRUPO = {GRANULARIDADE_DIA: "dia", GRANULARIDADE_MES: "mês"}
 
 class PainelDemonstrativo(PainelRelatorio):
     TITULO = "Demonstrativo financeiro"
+    CHAVE = REL_DEMONSTRATIVO
 
     def __init__(self, master, servicos):
         super().__init__(master, servicos)
+        self._movimentos = []          # todas as movimentações do período (a tela mostra as últimas)
+        self._nota_exportacao = ""
 
         filtro = Cartao(self, "Filtros")
         filtro.pack(fill="x")
@@ -113,6 +117,7 @@ class PainelDemonstrativo(PainelRelatorio):
             return
 
         self.marcar_emissao(inicio, fim)
+        self.definir_filtros([("Movimentações", self.origem.valor() or "Todas")])
         r = dem.resumo
         self.cartoes["Saldo inicial"].atualizar(formatar_moeda(r.saldo_inicial))
         self.cartoes["Entradas"].atualizar(formatar_moeda(r.entradas_pagamentos), VERDE)
@@ -122,6 +127,7 @@ class PainelDemonstrativo(PainelRelatorio):
             formatar_moeda(r.saldo_final), VERMELHO if r.saldo_final < 0 else COR_TEXTO)
 
         movimentos = dem.movimentacoes
+        self._movimentos = movimentos
         self.tabela_historico.carregar(
             self.servicos.linhas_caixa(movimentos[-LIMITE_LINHAS:]))
         self.tabela_fluxo.carregar(
@@ -132,9 +138,17 @@ class PainelDemonstrativo(PainelRelatorio):
                  f"{formatar_moeda(r.entradas)} − despesas {formatar_moeda(r.saidas_despesas)} − "
                  f"reembolsos {formatar_moeda(r.saidas_reembolsos)} "
                  f"(variação do período: {sinal} {formatar_moeda(abs(dem.variacao))}). ")
+        nota_exportacao = texto
         if r.antes_do_caixa:
             texto = ("Este período é anterior à data do saldo inicial do caixa, então não há "
                      "saldo nem movimentações. ")
+            nota_exportacao = texto
+        else:
+            nota_exportacao += (f"Fluxo agrupado por {NOME_GRUPO.get(dem.granularidade, 'semana')}. "
+                                f"Histórico com todas as {len(movimentos)} movimentações do período.")
+        self._nota_exportacao = nota_exportacao.strip()
+        if r.antes_do_caixa:
+            pass
         elif self.visao.valor() == FLUXO:
             texto += (f"Fluxo agrupado por {NOME_GRUPO.get(dem.granularidade, 'semana')}; "
                       "os grupos de uma linha só mostram o que aconteceu naquele intervalo.")
@@ -142,3 +156,14 @@ class PainelDemonstrativo(PainelRelatorio):
             texto += (f"Mostrando as {LIMITE_LINHAS} últimas de {len(movimentos)} movimentações; "
                       "reduza o período para ver as anteriores.")
         self.lbl_info.configure(text=texto)
+
+    def documento_para_exportar(self):
+        """Exporta o histórico inteiro do período (a tela mostra só as últimas LIMITE_LINHAS),
+        para o documento fechar com os indicadores e com o fluxo de caixa."""
+        documento = super().documento_para_exportar()
+        for tabela in documento.tabelas:
+            if tabela.titulo == "Histórico de movimentações":
+                tabela.linhas = self.servicos.linhas_caixa(self._movimentos)
+        if self._nota_exportacao:
+            documento.observacoes = [self._nota_exportacao]
+        return documento
