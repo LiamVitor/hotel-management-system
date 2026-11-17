@@ -153,3 +153,12 @@ def icone(nome, cor, lado=LADO_PADRAO):
         _cache[chave] = (None if imagem is None
                          else ctk.CTkImage(light_image=imagem, size=(lado, lado)))
     return _cache[chave]
+
+
+def limpar_cache():
+    """Esquece os ícones guardados.
+
+    Cada CTkImage fica preso à janela (interpretador Tk) que o usou primeiro. Ao sair da conta
+    e entrar de novo o App é recriado, então o cache velho precisa ser descartado.
+    """
+    _cache.clear()

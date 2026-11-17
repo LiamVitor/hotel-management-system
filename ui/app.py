@@ -2,6 +2,8 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
+from ui.agendamentos import cancelar_agendamentos
+from ui.componentes import cabecalho_relatorio, icones_menu
 from ui.componentes.janela_senha import JanelaAlterarSenha
 from ui.componentes.menu_lateral import MenuLateral, itens_permitidos
 from ui.servicos import Servicos
@@ -35,6 +37,10 @@ class App(ctk.CTk):
     def __init__(self):
         configurar_tema()
         super().__init__()
+        # Imagens guardadas por uma sessão anterior pertencem à janela que já foi fechada;
+        # sem isso, sair da conta e entrar de novo dava "image pyimageN does not exist".
+        icones_menu.limpar_cache()
+        cabecalho_relatorio.limpar_cache()
         self.title("Pousada — Gestão de Hotel")
         # Usa a área útil do monitor sem impor um tamanho maior que a tela.
         largura_tela = self.winfo_screenwidth()
@@ -83,6 +89,10 @@ class App(ctk.CTk):
         if messagebox.askyesno("Sair", "Deseja sair da sua conta?"):
             self.deslogou = True
             self.destroy()
+
+    def destroy(self):
+        cancelar_agendamentos(self)     # evita "invalid command name" ao fechar
+        super().destroy()
 
     def run(self):
         self.mainloop()

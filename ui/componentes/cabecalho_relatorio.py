@@ -1,26 +1,72 @@
 """Cabeçalho padrão dos relatórios: pousada (nome e logotipo), título, período, geração e emissor."""
+import io
+from pathlib import Path
+
 import customtkinter as ctk
 from PIL import Image
 
 from src.services.relatorio_padrao import texto_emissor, texto_geracao
+from ui.componentes import icones_menu
 from ui.componentes.cartao import Cartao
 from ui.estilos import AZUL, COR_BORDA, COR_TEXTO, COR_TEXTO_SUAVE, fonte
 
 LADO_LOGO = 44
+# O cabeçalho mostra um ícone desenhado no mesmo estilo dos do menu lateral, em vez do arquivo de
+# logotipo. Para trocar, use o nome de qualquer item do menu: "Quartos", "Reservas", "Início"...
+ICONE_CABECALHO = "Quartos"
+LADO_ICONE = 26
 _logos = {}      # caminho -> CTkImage (ou None se o arquivo não abriu)
 
 
+ESCALA_SVG = 4       # o SVG é desenhado 4x maior que o espaço do logotipo, para ficar nítido
+
+
+def abrir_imagem_logo(caminho, lado=LADO_LOGO):
+    """Abre o logotipo (PNG, JPG ou SVG) como imagem PIL, ou levanta OSError/ValueError/ImportError.
+
+    SVG é desenhado pelo pacote `resvg-py` (pip install resvg-py): o Tk não lê SVG sozinho.
+    """
+    caminho = Path(caminho)
+    if caminho.suffix.lower() in (".svg", ".svgz"):
+        import resvg_py
+        # o SVG pode não ser quadrado: a maior dimensão vai a `lado`, a outra segue a proporção
+        png = resvg_py.svg_to_bytes(svg_path=str(caminho), width=lado * ESCALA_SVG)
+        imagem = Image.open(io.BytesIO(bytes(png)))
+        if imagem.height > imagem.width:
+            png = resvg_py.svg_to_bytes(svg_path=str(caminho), height=lado * ESCALA_SVG)
+            imagem = Image.open(io.BytesIO(bytes(png)))
+        return imagem.convert("RGBA")
+    return Image.open(caminho).convert("RGBA")
+
+
 def carregar_logo(caminho, lado=LADO_LOGO):
-    """Imagem do logotipo, ou None se não há arquivo ou ele não abre (aí vale o monograma)."""
+    """Imagem do logotipo, ou None se não há arquivo ou ele não abre (aí vale o monograma).
+
+    Se o SVG não puder ser desenhado (arquivo inválido ou `resvg-py` não instalado), tenta o
+    `logo.png` da mesma pasta antes de desistir.
+    """
     if not caminho:
         return None
     if caminho not in _logos:
-        try:
-            imagem = Image.open(caminho).convert("RGBA")
-            _logos[caminho] = ctk.CTkImage(light_image=imagem, size=(lado, lado))
-        except (OSError, ValueError):
-            _logos[caminho] = None
+        _logos[caminho] = None
+        candidatos = [Path(caminho)]
+        if candidatos[0].suffix.lower() in (".svg", ".svgz"):
+            candidatos.append(candidatos[0].with_suffix(".png"))
+        for candidato in candidatos:
+            try:
+                imagem = abrir_imagem_logo(candidato, lado)
+            except (OSError, ValueError, ImportError):
+                continue
+            proporcao = imagem.width / imagem.height
+            tamanho = (lado, round(lado / proporcao)) if proporcao >= 1 else (round(lado * proporcao), lado)
+            _logos[caminho] = ctk.CTkImage(light_image=imagem, size=tamanho)
+            break
     return _logos[caminho]
+
+
+def limpar_cache():
+    """Esquece os logotipos guardados (mesmo motivo de `icones_menu.limpar_cache`)."""
+    _logos.clear()
 
 
 class CabecalhoPadrao(Cartao):
@@ -54,13 +100,9 @@ class CabecalhoPadrao(Cartao):
                                         anchor="w")
         self.lbl_periodo.pack(anchor="w", padx=20, pady=(0, 14))
 
-    def atualizar(self, cabecalho):
-        logo = carregar_logo(cabecalho.arquivo_logo)
-        if logo is not None:
-            self._logo.configure(image=logo, text="", fg_color="transparent")
-        else:      # sem arquivo de logotipo: monograma com a inicial da pousada
-            self._logo.configure(image=None, text=cabecalho.nome_pousada[:1].upper(), fg_color=AZUL,
-                                 text_color="white", corner_radius=10, font=fonte(22, True))
+    def atualizar(self, cabecalho): 
+        icone = icones_menu.icone(ICONE_CABECALHO, "#FFFFFF", LADO_ICONE)
+        self._logo.configure(image=icone, text="", fg_color=AZUL, corner_radius=10)
         self.lbl_pousada.configure(text=cabecalho.nome_pousada)
         self.lbl_titulo.configure(text=cabecalho.titulo)
         self.lbl_periodo.configure(text=cabecalho.periodo)

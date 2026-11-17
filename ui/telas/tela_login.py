@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from src.services.erros import ErroNegocio
 from src.services.usuario_service import UsuarioService
+from ui.agendamentos import cancelar_agendamentos
 
 ctk.set_appearance_mode("system")
 ctk.set_default_color_theme("blue")
@@ -70,6 +71,10 @@ class TelaLogin(ctk.CTk):
 
     def _mostrar_erro(self, mensagem):
         self.label_erro.configure(text=mensagem)
+
+    def destroy(self):
+        cancelar_agendamentos(self)     # evita "invalid command name" ao fechar
+        super().destroy()
 
     def verificar_login(self):
         usuario = self.entry_usuario.get().strip()
